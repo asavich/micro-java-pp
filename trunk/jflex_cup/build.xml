@@ -1,1 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
+<project name="MicroJavaCompiler" default="GenerateAll">
+	<taskdef name="cup" classname="java_cup.anttask.CUPTask"/>
+	<taskdef classname="JFlex.anttask.JFlexTask" name="jflex" />
+	
+	<property name="dest" location="../src/org/microjava/syntax" />
+	<property name="src" location="../src" />
+	<property name="workingdir" location="." />
+	<property name="lexerclass" value="Lexer.java" />
+	
+	
+	<target name="DeleteLexer">
+		<delete file="../src/org/microjava/syntax/${lexerclass}" />
+	</target>
+	
+	<target name="DeleteCup">
+		<delete file="${dest}/sym.java" />
+		<delete file="${dest}/parser.java" />
+	</target>
+	
+	<target name="GenerateLexer" depends="DeleteLexer">
+		<jflex file="${workingdir}/inputflex.flex" outdir="${dest}"/>
+	</target>
+	
+	<target name="GenerateCup" depends="DeleteCup">
+		<cup srcfile="${workingdir}/inputcup.cup" destdir="${src}" interface="true" />
+	</target>
+	
+	<target name="GenerateAll" depends="DeleteCup, DeleteLexer">
+		<jflex file="${workingdir}/inputflex.flex" outdir="${dest}"/>
+		<cup srcfile="${workingdir}/inputcup.cup" destdir="${src}" interface="true" />
+	</target>
+</project>
