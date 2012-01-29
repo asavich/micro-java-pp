@@ -1,0 +1,9 @@
+class P
+	final int size = 10;
+	{
+	void main()
+	int x, i;
+	{
+		i = 11;
+	}
+	}

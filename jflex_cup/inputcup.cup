@@ -1,0 +1,236 @@
+package org.microjava.syntax;
+
+import java_cup.runtime.*;
+
+parser code {:
+	//override methods
+	public void report_fatal_error(String message, Object info) throws java.lang.Exception
+	{
+		done_parsing();
+		report_error(message, info);
+	}
+	
+	public void syntax_error(Symbol curr_token)
+	{
+		report_error("\nSintaksna greska", curr_token);
+	}
+	
+	public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception
+	{
+		report_fatal_error("\nFatalna greska, parsiranje se ne moze nastaviti", cur_token);
+	}
+	
+	public void report_error(String message, Object info)
+	{
+		System.err.print(message);
+		System.err.flush();
+		if(info instanceof Symbol)
+		{
+			System.err.println(" na liniji " + ((Symbol)info).left);
+		}
+		else
+		{
+			System.err.println("Nije simbol");
+		}
+	}
+:}
+
+terminal TIMES, DIVIDE, MOD;
+terminal PLUS, MINUS;
+terminal COMMA, SEMI, EQUAL, NOTEQUAL, GREATER, GREATEREQUAL, LESS, LESSEQUAL, ASSIGN, DOT;
+terminal RPAREN, LPAREN, LBRACE, RBRACE, LSQUARE, RSQUARE;
+terminal PLUSPLUS, MINUSMINUS;
+terminal CLASS, FINAL, VOID;
+terminal IF, ELSE, WHILE, BREAK, RETURN, READ, PRINT;
+terminal OR, AND, NEW;
+terminal Integer NUMBER;
+terminal Character CHARCONST;
+terminal String IDENT;
+
+non terminal program, const_decl, var_decl, class_decl;
+non terminal method_decl, form_pars, type, statement;
+non terminal act_pars, condition, cond_term, cond_fact;
+non terminal expr, term, factor, designator, relop, addop, mulop;
+non terminal var_decl_list, decl_list, decl_part, rhs, arr_sign, rep_var, rep_var_part;
+non terminal method_decl_list, statement_list;
+non terminal option_in_class, type_or_void, eventual_formal_par, more_formal_pars, more_formal_pars_list; 
+non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
+non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf, eventual_minus, multiple_addop_term, multiple_mulop_factor;
+non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list;
+
+precedence right ELSE;
+
+program ::= CLASS IDENT decl_list LBRACE method_decl RBRACE;
+
+decl_list ::= decl_list decl_part
+			|
+			/* epsilon */;
+		
+decl_part ::= const_decl
+			| var_decl
+			| class_decl;
+			
+const_decl ::= FINAL type IDENT ASSIGN rhs SEMI;
+
+type ::= IDENT;
+
+rhs ::=  NUMBER
+	| CHARCONST;
+	
+
+var_decl ::= type IDENT arr_sign rep_var SEMI;
+
+arr_sign ::= LSQUARE RSQUARE
+			| /* epsilon */;
+			
+rep_var ::= rep_var rep_var_part
+			| /* eps */;
+			
+rep_var_part ::= COMMA IDENT arr_sign;
+
+
+class_decl ::= CLASS IDENT LBRACE var_decl_list option_in_class RBRACE;
+
+var_decl_list ::= var_decl_list var_decl
+				| /* epsilon */;
+
+method_decl_list ::= method_decl_list method_decl
+					| /* epsilon */;
+
+option_in_class ::= LBRACE method_decl_list RBRACE
+				| /* epsilon */;
+
+type_or_void ::= type 
+				| VOID;				
+				
+eventual_formal_par ::= form_pars
+					| /* epsilon */;
+					
+				
+method_decl ::= type_or_void IDENT LPAREN eventual_formal_par RPAREN var_decl_list LBRACE statement_list RBRACE;  
+
+statement_list ::= statement_list statement
+				| /* eps */;
+				
+form_pars ::= type IDENT arr_sign more_formal_pars_list;
+
+more_formal_pars ::= COMMA type IDENT arr_sign;
+
+more_formal_pars_list ::= more_formal_pars_list more_formal_pars
+						| /* epsilon */;
+	
+	
+eventual_act_pars ::= act_pars
+					| /* epsilon */;
+											
+stat_par ::= ASSIGN expr
+			| LPAREN eventual_act_pars RPAREN
+			| PLUSPLUS
+			| MINUSMINUS;  
+						
+eventual_else ::= ELSE statement
+				| /* epsilon */;
+				
+				
+eventual_expr ::= expr
+				| /* epsilon */;
+												
+statement ::= designator stat_par SEMI
+			| IF LPAREN condition RPAREN statement eventual_else
+			| WHILE LPAREN condition RPAREN statement
+			| BREAK SEMI
+			| RETURN eventual_expr SEMI
+			| READ LPAREN designator RPAREN SEMI
+			| PRINT LPAREN expr eventual_num RPAREN SEMI
+			| LBRACE statement_list RBRACE;
+			
+eventual_num ::= COMMA NUMBER
+				| /* epsilon */;
+				
+act_pars ::= expr multiple_comma_expr;    
+
+comma_expr ::= COMMA expr;
+
+multiple_comma_expr ::= multiple_comma_expr comma_expr
+					| /* epsilon */; 
+					
+		
+multiple_or_ct ::= multiple_or_ct OR cond_term
+				| /* epsilon */;
+
+condition ::= cond_term multiple_or_ct;
+
+and_cf ::= AND cond_fact;
+
+multiple_and_cf ::= multiple_and_cf and_cf
+				| /* epsilon */;
+				
+cond_term ::= cond_fact multiple_and_cf;
+
+cond_fact ::= expr relop expr;
+
+eventual_minus ::= MINUS
+				| /* epsilon */;
+				
+multiple_addop_term ::= multiple_addop_term addop term
+					| /* epsilon */;
+
+expr ::= eventual_minus term multiple_addop_term;
+
+
+multiple_mulop_factor ::= multiple_mulop_factor mulop factor
+						| /* epsilon */;
+						
+term ::= factor multiple_mulop_factor;
+
+eventual_b_act ::= LPAREN eventual_act_pars RPAREN
+				| /* epsilon */;
+				
+eventual_p_expr ::= LSQUARE expr RSQUARE
+				| /* eps */;
+
+factor ::= designator eventual_b_act
+		| NUMBER
+		| CHARCONST
+		| NEW type eventual_p_expr
+		| NEW type LPAREN eventual_act_pars RPAREN
+		| LPAREN expr RPAREN;
+		
+designator_part ::= DOT IDENT
+				| LSQUARE expr RSQUARE;
+				
+designator_list ::= designator_list designator_part
+				| /* epsilon */;
+						
+designator ::= IDENT designator_list;
+
+relop ::= EQUAL
+		| NOTEQUAL
+		| GREATER
+		| GREATEREQUAL
+		| LESS
+		| LESSEQUAL;
+		
+addop ::= PLUS
+		| MINUS;
+		
+mulop ::= TIMES
+		| DIVIDE
+		| MOD;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
