@@ -18,7 +18,7 @@ public class MicroJavaBuilder {
 		
 		FileReader inputFile = null;
 		try {
-			inputFile = new FileReader(new File("jflex_cup/program.mj"));
+			inputFile = new FileReader(new File("jflex_cup/program3.mj"));
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -41,11 +41,22 @@ public class MicroJavaBuilder {
 		parser p = new parser(l);
 		try {
 			Symbol s = p.parse();
+			if(s.sym == sym.INVALID){
+				System.out.println("JBG");
+			}
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
+		System.out.println("Na kraju je pronadjeno " + p.innerClassDeclarations + " unutrasnjih klasa ");
+		System.out.println("Na kraju je pronadjeno " + p.innerClassMethods + " metoda unutrasnih klasa ");
+		System.out.println("Na kraju je pronadjeno " + p.mainClassMethods + " metoda glavne klase ");
+		System.out.println("Na kraju je pronadjeno " + p.constDeclaration + " globalnih konstanti ");
+		System.out.println("Na kraju je pronadjeno " + p.arrayDeclaration + " globalnih nizova ");
+		System.out.println("Na kraju je pronadjeno " + p.varDeclaration + " globalnih promenljivih prostog tipa ");
+		System.out.println("Na kraju je pronadjeno " + p.numOfFunctions + " poziva funkcija u okviru main ");
+		System.out.println("Na kraju je pronadjeno " + p.numOfStatements + " iskaza u okviru main ");
 	}
 
 }

@@ -3,6 +3,20 @@ package org.microjava.syntax;
 import java_cup.runtime.*;
 
 parser code {:
+	//public methods 
+	public int innerClassDeclarations = 0;
+	public boolean isInInnerClass = false;
+	public boolean isGlobal = true;
+	public boolean isPrimitive = false;
+	public boolean isInMain = false;
+	public int innerClassMethods = 0;
+	public int mainClassMethods = 0;
+	public int constDeclaration = 0;
+	public int varDeclaration = 0;
+	public int arrayDeclaration = 0;
+	public int numOfFunctions = 0;
+	public int numOfStatements = 0;
+	
 	//override methods
 	public void report_fatal_error(String message, Object info) throws java.lang.Exception
 	{
@@ -35,6 +49,22 @@ parser code {:
 	}
 :}
 
+init with {:
+	innerClassDeclarations = 0;
+	isInInnerClass = false;
+	isGlobal = true;
+	isPrimitive = false;
+	isInMain = false;
+	innerClassMethods = 0;
+	mainClassMethods = 0;
+	constDeclaration = 0;
+	varDeclaration = 0;
+	arrayDeclaration = 0;
+	numOfFunctions = 0;
+	numOfStatements = 0;
+
+:};
+
 terminal TIMES, DIVIDE, MOD;
 terminal PLUS, MINUS;
 terminal COMMA, SEMI, EQUAL, NOTEQUAL, GREATER, GREATEREQUAL, LESS, LESSEQUAL, ASSIGN, DOT;
@@ -43,6 +73,7 @@ terminal PLUSPLUS, MINUSMINUS;
 terminal CLASS, FINAL, VOID;
 terminal IF, ELSE, WHILE, BREAK, RETURN, READ, PRINT;
 terminal OR, AND, NEW;
+terminal INVALID;
 terminal Integer NUMBER;
 terminal Character CHARCONST;
 terminal String IDENT;
@@ -56,11 +87,21 @@ non terminal method_decl_list, statement_list;
 non terminal option_in_class, type_or_void, eventual_formal_par, more_formal_pars, more_formal_pars_list; 
 non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
 non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf, eventual_minus, multiple_addop_term, multiple_mulop_factor;
-non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list;
+non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list, class_name, inner_class_name, inner_class_end;
+non terminal start_main_program, arr_in_decl, eventual_arr_in_decl, var_type, method_name;
 
 precedence right ELSE;
 
-program ::= CLASS IDENT decl_list LBRACE method_decl RBRACE;
+program ::= CLASS class_name decl_list start_main_program method_decl_list RBRACE;
+			
+
+start_main_program ::= LBRACE
+					{:
+						parser.isGlobal = false;
+					:};
+
+
+class_name ::= IDENT;
 
 decl_list ::= decl_list decl_part
 			|
@@ -70,15 +111,57 @@ decl_part ::= const_decl
 			| var_decl
 			| class_decl;
 			
-const_decl ::= FINAL type IDENT ASSIGN rhs SEMI;
+const_decl ::= FINAL type IDENT ASSIGN rhs SEMI
+			{:
+				if(parser.isGlobal)
+				{
+					parser.constDeclaration++;
+				}
+			:};
 
 type ::= IDENT;
+
+
+var_type ::= IDENT:id
+	{:
+		RESULT = id.toString();
+		if(parser.isGlobal)
+		{
+			if(id.equals("int") || id.equals("char"))
+			{
+				parser.isPrimitive = true;	
+			}
+		}
+	:};
 
 rhs ::=  NUMBER
 	| CHARCONST;
 	
+				
+var_decl ::= var_type:t IDENT:i eventual_arr_in_decl rep_var SEMI
+			{:
+				if(parser.isGlobal)
+				{
+					if(t.equals("int") || t.equals("char")) parser.varDeclaration++;
+					parser.isPrimitive = false;
+				}
+			:};
+			
+			
+eventual_arr_in_decl ::= arr_in_decl
+						| /* eps */;
 
-var_decl ::= type IDENT arr_sign rep_var SEMI;
+arr_in_decl ::= LSQUARE RSQUARE
+			{:
+			if(parser.isGlobal)
+			{
+				if(parser.isPrimitive)
+				{
+					parser.varDeclaration--;
+				}
+				parser.arrayDeclaration++;
+			}
+			:};
 
 arr_sign ::= LSQUARE RSQUARE
 			| /* epsilon */;
@@ -86,10 +169,30 @@ arr_sign ::= LSQUARE RSQUARE
 rep_var ::= rep_var rep_var_part
 			| /* eps */;
 			
-rep_var_part ::= COMMA IDENT arr_sign;
+rep_var_part ::= COMMA IDENT eventual_arr_in_decl
+				{:
+					if(parser.isGlobal && parser.isPrimitive)
+					{
+						parser.varDeclaration++;
+					}
+				:};
 
 
-class_decl ::= CLASS IDENT LBRACE var_decl_list option_in_class RBRACE;
+class_decl ::= CLASS inner_class_name LBRACE var_decl_list option_in_class inner_class_end;
+				
+				
+inner_class_name ::= IDENT:id
+				{:
+					parser.innerClassDeclarations++;
+					parser.isInInnerClass = true;
+					parser.isGlobal = false;
+				:};
+				
+inner_class_end ::= RBRACE
+				{:
+					parser.isInInnerClass = false;
+					parser.isGlobal = true;
+				:};
 
 var_decl_list ::= var_decl_list var_decl
 				| /* epsilon */;
@@ -106,8 +209,33 @@ type_or_void ::= type
 eventual_formal_par ::= form_pars
 					| /* epsilon */;
 					
+
+
+method_name ::= IDENT:name
+			{:
+				RESULT = name;
+				if(name.equals("main"))
+				{
+					parser.isInMain = true;
+				}
+			:};
 				
-method_decl ::= type_or_void IDENT LPAREN eventual_formal_par RPAREN var_decl_list LBRACE statement_list RBRACE;  
+method_decl ::= type_or_void method_name:mn LPAREN eventual_formal_par RPAREN var_decl_list LBRACE statement_list RBRACE
+			{:
+				if(parser.isInInnerClass)
+				{
+					parser.innerClassMethods++;
+				}
+				else
+				{
+					parser.mainClassMethods++;
+				}
+				
+				if(mn.equals("main"))
+				{
+					parser.isInMain = false;
+				}
+			:};  
 
 statement_list ::= statement_list statement
 				| /* eps */;
@@ -124,9 +252,21 @@ eventual_act_pars ::= act_pars
 					| /* epsilon */;
 											
 stat_par ::= ASSIGN expr
+				{:
+					if(parser.isInMain) parser.numOfStatements++;
+				:}
 			| LPAREN eventual_act_pars RPAREN
+				{:
+					if(parser.isInMain) parser.numOfFunctions++;
+				:}
 			| PLUSPLUS
-			| MINUSMINUS;  
+				{:
+					if(parser.isInMain) parser.numOfStatements++;
+				:}
+			| MINUSMINUS
+				{:
+					if(parser.isInMain) parser.numOfStatements++;
+				:};  
 						
 eventual_else ::= ELSE statement
 				| /* epsilon */;
@@ -137,12 +277,33 @@ eventual_expr ::= expr
 												
 statement ::= designator stat_par SEMI
 			| IF LPAREN condition RPAREN statement eventual_else
+			    {:
+					if(parser.isInMain) parser.numOfStatements++;
+				:}
 			| WHILE LPAREN condition RPAREN statement
+				{:
+					if(parser.isInMain) parser.numOfStatements++;
+				:}
 			| BREAK SEMI
+				{:
+					if(parser.isInMain) parser.numOfStatements++;
+				:}
 			| RETURN eventual_expr SEMI
+				{:
+					if(parser.isInMain) parser.numOfStatements++;
+				:}
 			| READ LPAREN designator RPAREN SEMI
+				{:
+					if(parser.isInMain) parser.numOfFunctions++;
+				:}
 			| PRINT LPAREN expr eventual_num RPAREN SEMI
-			| LBRACE statement_list RBRACE;
+				{:
+					if(parser.isInMain) parser.numOfFunctions++;
+				:}
+			| LBRACE statement_list RBRACE
+				{:
+					if(parser.isInMain) parser.numOfStatements++;
+				:};
 			
 eventual_num ::= COMMA NUMBER
 				| /* epsilon */;
