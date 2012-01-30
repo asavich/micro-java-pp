@@ -78,4 +78,5 @@ import java_cup.runtime.*;
 [0-9]+ {return newSymbol(sym.NUMBER, new Integer(yytext())); }
 [:jletter:][:jletterdigit:]* {return newSymbol (sym.IDENT, yytext());}
 "'"[\040-176]"'" {return newSymbol(sym.CHARCONST, new Character(yytext().charAt(1))); }
-. {System.err.println("Leksicka greska na liniji " + (yyline + 1) + " : " + yytext() ); }
+. {System.err.println("Leksicka greska na liniji " + (yyline + 1) + " : " + yytext() ); 
+	return newSymbol(sym.INVALID);}
