@@ -1,11 +1,25 @@
 class P
 	sss a[];
+	class Table 
+	{
+		int 1asd;
+		{
+		void Table(int s) { pos=new int[s]; neg=new int[s]; }
+		}
+	}
 	
 	{
-		void main() int x, i;
+		void main() int x;
 		{
+		
+			x = 5;
 			zzz();
 			read(x);
+			if (ads == 4) 
+			{
+			}
+			
+		 
 			
 		}
 		

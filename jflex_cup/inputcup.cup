@@ -17,6 +17,10 @@ parser code {:
 	public int numOfFunctions = 0;
 	public int numOfStatements = 0;
 	
+	public int numOfErrors = 0;
+	
+	public boolean errorDetected = false;
+	
 	//override methods
 	public void report_fatal_error(String message, Object info) throws java.lang.Exception
 	{
@@ -27,6 +31,7 @@ parser code {:
 	public void syntax_error(Symbol curr_token)
 	{
 		report_error("\nSintaksna greska", curr_token);
+		numOfErrors++;
 	}
 	
 	public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception
@@ -44,8 +49,11 @@ parser code {:
 		}
 		else
 		{
-			System.err.println("Nije simbol");
+			System.err.println("");
 		}
+		
+		errorDetected = true;
+		
 	}
 :}
 
@@ -62,6 +70,8 @@ init with {:
 	arrayDeclaration = 0;
 	numOfFunctions = 0;
 	numOfStatements = 0;
+	errorDetected = false;
+	numOfErrors = 0;
 
 :};
 
@@ -88,7 +98,8 @@ non terminal option_in_class, type_or_void, eventual_formal_par, more_formal_par
 non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
 non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf, eventual_minus, multiple_addop_term, multiple_mulop_factor;
 non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list, class_name, inner_class_name, inner_class_end;
-non terminal start_main_program, arr_in_decl, eventual_arr_in_decl, var_type, method_name;
+non terminal start_main_program, arr_in_decl, eventual_arr_in_decl, var_type, method_name, var, assignment, statement_in_braces, cond_parens;
+non terminal function_call, expr_in_index;
 
 precedence right ELSE;
 
@@ -109,7 +120,11 @@ decl_list ::= decl_list decl_part
 		
 decl_part ::= const_decl
 			| var_decl
-			| class_decl;
+			| class_decl
+			| error SEMI:l
+				{:
+					parser.report_error("Izvrsen oporavak do ; na liniji " + lleft, null);
+				:};
 			
 const_decl ::= FINAL type IDENT ASSIGN rhs SEMI
 			{:
@@ -136,6 +151,13 @@ var_type ::= IDENT:id
 
 rhs ::=  NUMBER
 	| CHARCONST;
+	
+	
+var ::= var_decl
+		| error SEMI:l
+		{:
+			System.out.println("Izvrsen oporavak do ; na liniji " + lleft);
+		:};
 	
 				
 var_decl ::= var_type:t IDENT:i eventual_arr_in_decl rep_var SEMI
@@ -178,7 +200,11 @@ rep_var_part ::= COMMA IDENT eventual_arr_in_decl
 				:};
 
 
-class_decl ::= CLASS inner_class_name LBRACE var_decl_list option_in_class inner_class_end;
+class_decl ::= CLASS inner_class_name LBRACE var_decl_list option_in_class inner_class_end
+			| error RBRACE:l
+				{:
+					parser.report_error("Izvrsen oporavak do } na liniji " + lleft, null);
+				:};
 				
 				
 inner_class_name ::= IDENT:id
@@ -194,7 +220,7 @@ inner_class_end ::= RBRACE
 					parser.isGlobal = true;
 				:};
 
-var_decl_list ::= var_decl_list var_decl
+var_decl_list ::= var_decl_list var
 				| /* epsilon */;
 
 method_decl_list ::= method_decl_list method_decl
@@ -250,15 +276,27 @@ more_formal_pars_list ::= more_formal_pars_list more_formal_pars
 	
 eventual_act_pars ::= act_pars
 					| /* epsilon */;
-											
-stat_par ::= ASSIGN expr
+
+assignment ::= designator ASSIGN expr SEMI
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
-				:}
-			| LPAREN eventual_act_pars RPAREN
+				:}					
+				| error SEMI:l
+				{:
+					parser.report_error("Izvrsen oporavak do ; na liniji " + lleft, null);
+				:};
+					
+					
+function_call ::= LPAREN eventual_act_pars RPAREN
 				{:
 					if(parser.isInMain) parser.numOfFunctions++;
 				:}
+				| error RPAREN:l	
+				{:
+					parser.report_error("Izvrsen oporavak do ) na liniji " + lleft, null);
+				:};
+									
+stat_par ::= function_call
 			| PLUSPLUS
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
@@ -275,12 +313,13 @@ eventual_else ::= ELSE statement
 eventual_expr ::= expr
 				| /* epsilon */;
 												
-statement ::= designator stat_par SEMI
-			| IF LPAREN condition RPAREN statement eventual_else
+statement ::= assignment
+			| designator stat_par SEMI
+			| IF cond_parens statement eventual_else
 			    {:
 					if(parser.isInMain) parser.numOfStatements++;
 				:}
-			| WHILE LPAREN condition RPAREN statement
+			| WHILE cond_parens statement
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
 				:}
@@ -300,9 +339,15 @@ statement ::= designator stat_par SEMI
 				{:
 					if(parser.isInMain) parser.numOfFunctions++;
 				:}
-			| LBRACE statement_list RBRACE
+			| statement_in_braces;
+				
+statement_in_braces ::= LBRACE statement_list RBRACE
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
+				:}
+				| error RBRACE:l
+				{:
+					parser.report_error("Izvrsen oporavak do } na liniji " + lleft, null);
 				:};
 			
 eventual_num ::= COMMA NUMBER
@@ -318,6 +363,12 @@ multiple_comma_expr ::= multiple_comma_expr comma_expr
 		
 multiple_or_ct ::= multiple_or_ct OR cond_term
 				| /* epsilon */;
+				
+cond_parens ::= LPAREN condition RPAREN
+			| error RPAREN:l
+			{:
+				parser.report_error("Izvrsen oporavak do ) na liniji " + lleft, null);
+			:};
 
 condition ::= cond_term multiple_or_ct;
 
@@ -347,8 +398,14 @@ term ::= factor multiple_mulop_factor;
 eventual_b_act ::= LPAREN eventual_act_pars RPAREN
 				| /* epsilon */;
 				
-eventual_p_expr ::= LSQUARE expr RSQUARE
+eventual_p_expr ::= expr_in_index
 				| /* eps */;
+				
+expr_in_index ::= LSQUARE expr RSQUARE
+				| error RSQUARE:l
+				{:
+					parser.report_error("Izvrsen oporavak do ] na liniji " + lleft, null);
+				:};
 
 factor ::= designator eventual_b_act
 		| NUMBER

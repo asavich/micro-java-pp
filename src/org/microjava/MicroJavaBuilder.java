@@ -57,6 +57,15 @@ public class MicroJavaBuilder {
 		System.out.println("Na kraju je pronadjeno " + p.varDeclaration + " globalnih promenljivih prostog tipa ");
 		System.out.println("Na kraju je pronadjeno " + p.numOfFunctions + " poziva funkcija u okviru main ");
 		System.out.println("Na kraju je pronadjeno " + p.numOfStatements + " iskaza u okviru main ");
+		
+		if(p.errorDetected)
+		{
+			System.out.println("Bilo je " + p.numOfErrors +" gresaka pri parsiranju");
+		}
+		else
+		{
+			System.out.println("Nije bilo gresaka pri parsiranju");
+		}
 	}
 
 }
