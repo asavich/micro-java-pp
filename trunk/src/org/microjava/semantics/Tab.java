@@ -57,7 +57,7 @@ public class Tab {
 		Obj argChr = new Obj(Obj.VAR, "i", INTTYPE);
 		argChr.address = 0;
 		argChr.level = 1;
-		chrObject.locals.add(argChr);
+		chrObject.locals.put("i", argChr);
 		chrObj = chrObject;
 		topScope.locals.put(chrName, chrObject);
 		//method ord
@@ -68,7 +68,7 @@ public class Tab {
 		Obj argOrd = new Obj(Obj.VAR, "ch", CHARTYPE);
 		argOrd.address = 0;
 		argOrd.level = 1;
-		ordObject.locals.add(argOrd);
+		ordObject.locals.put("ch", argOrd);
 		ordObj = ordObject;
 		topScope.locals.put(ordName, ordObject);
 		//method len
@@ -79,7 +79,7 @@ public class Tab {
 		Obj argLen = new Obj(Obj.VAR, "arr", new Struct(Struct.ARR, NOTYPE));
 		argLen.address = 0;
 		argLen.level = 1;
-		lenObject.locals.add(argLen);
+		lenObject.locals.put("arr", argLen);
 		lenObj = lenObject;
 		topScope.locals.put(lenName, lenObject);
 		
@@ -180,5 +180,21 @@ public class Tab {
 		
 		error("Greska na liniji " + line + ". Polje nije nadjeno ");
 		return NOOBJ;
+	}
+	
+	public static void dump()
+	{
+		int l = level;
+		System.out.println("======================SADRZAJ TABELE SIMBOLA======================");
+		for(Scope s = topScope; s != null; s = s.outer)
+		{
+			System.out.println("(Level " + l + ")");
+			Map<String, Obj> allSymbols = topScope.locals;
+			for(Map.Entry<String, Obj> entry : allSymbols.entrySet())
+			{
+				System.out.println(entry.getValue().toString());
+			}
+			l--;
+		}
 	}
 }

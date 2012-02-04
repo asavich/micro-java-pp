@@ -20,7 +20,7 @@ class P
 	}
 	
 	
-	Table val[];
+	//Table val[];
 	
 	{
 		void main() int x, i;

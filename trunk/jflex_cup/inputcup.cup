@@ -1,6 +1,7 @@
 package org.microjava.syntax;
 
 import java_cup.runtime.*;
+import org.microjava.semantics.*;
 
 parser code {:
 	//public methods 
@@ -16,6 +17,8 @@ parser code {:
 	public int arrayDeclaration = 0;
 	public int numOfFunctions = 0;
 	public int numOfStatements = 0;
+	
+	public String variableType;
 	
 	public int numOfErrors = 0;
 	
@@ -57,6 +60,11 @@ parser code {:
 	}
 :}
 
+action code {:
+	Struct var_type = Tab.NOTYPE;
+	
+:}
+
 init with {:
 	innerClassDeclarations = 0;
 	isInInnerClass = false;
@@ -72,6 +80,8 @@ init with {:
 	numOfStatements = 0;
 	errorDetected = false;
 	numOfErrors = 0;
+	
+	variableType = "";
 
 :};
 
@@ -89,7 +99,7 @@ terminal Character CHARCONST;
 terminal String IDENT;
 
 non terminal program, const_decl, var_decl, class_decl;
-non terminal method_decl, form_pars, type, statement;
+non terminal method_decl, form_pars , statement;
 non terminal act_pars, condition, cond_term, cond_fact;
 non terminal expr, term, factor, designator, relop, addop, mulop;
 non terminal var_decl_list, decl_list, decl_part, rhs, arr_sign, rep_var, rep_var_part;
@@ -97,14 +107,26 @@ non terminal method_decl_list, statement_list;
 non terminal option_in_class, type_or_void, eventual_formal_par, more_formal_pars, more_formal_pars_list; 
 non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
 non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf, eventual_minus, multiple_addop_term, multiple_mulop_factor;
-non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list, class_name, inner_class_name, inner_class_end;
-non terminal start_main_program, arr_in_decl, eventual_arr_in_decl, var_type, method_name, var, assignment, statement_in_braces, cond_parens;
+non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list,  inner_class_name, inner_class_end;
+non terminal start_main_program, arr_in_decl, eventual_arr_in_decl, method_name, var, assignment, statement_in_braces, cond_parens;
 non terminal function_call, expr_in_index;
+non terminal Obj prog_name;
+non terminal Struct type, var_type;
 
 precedence right ELSE;
 
-program ::= CLASS class_name decl_list start_main_program method_decl_list RBRACE;
+program ::= CLASS prog_name:o decl_list start_main_program method_decl_list RBRACE
+			{:
+				o.locals = Tab.topScope.locals;
+				Tab.closeScope();
+			:};
 			
+
+prog_name ::= IDENT: id
+			{:
+				RESULT = Tab.insert(Obj.PROG, id, idleft, Tab.NOTYPE);
+				Tab.openScope();
+			:};
 
 start_main_program ::= LBRACE
 					{:
@@ -112,7 +134,7 @@ start_main_program ::= LBRACE
 					:};
 
 
-class_name ::= IDENT;
+
 
 decl_list ::= decl_list decl_part
 			|
@@ -126,26 +148,51 @@ decl_part ::= const_decl
 					parser.report_error("Izvrsen oporavak do ; na liniji " + lleft, null);
 				:};
 			
-const_decl ::= FINAL type IDENT ASSIGN rhs SEMI
+const_decl ::= FINAL type:t IDENT:id ASSIGN rhs SEMI
 			{:
 				if(parser.isGlobal)
 				{
 					parser.constDeclaration++;
 				}
+				
+				Tab.insert(Obj.CON, id, idleft, t);
 			:};
 
-type ::= IDENT;
+type ::= IDENT:id
+		{:
+			Obj nObj = Tab.find(id, idleft);
+			if(nObj.kind == Obj.TYPE)
+			{
+				RESULT = nObj.type;
+			}
+			else
+			{
+				parser.report_error("Greska ts jbg", null);
+				RESULT = Tab.NOTYPE;
+			}
+		:};
 
 
 var_type ::= IDENT:id
 	{:
-		RESULT = id.toString();
+		parser.variableType = id.toString();
 		if(parser.isGlobal)
 		{
 			if(id.equals("int") || id.equals("char"))
 			{
 				parser.isPrimitive = true;	
 			}
+		}
+		
+		Obj nObj = Tab.find(id, idleft);
+		if(nObj.kind == Obj.TYPE)
+		{
+			RESULT = nObj.type;
+		}
+		else
+		{
+			parser.report_error("Greska ts jbg", null);
+			RESULT = Tab.NOTYPE;
 		}
 	:};
 
@@ -160,15 +207,32 @@ var ::= var_decl
 		:};
 	
 				
-var_decl ::= var_type:t IDENT:i eventual_arr_in_decl rep_var SEMI
+var_decl ::= var_type:t {: var_type = t; :} rep_var SEMI
 			{:
-				if(parser.isGlobal)
-				{
-					if(t.equals("int") || t.equals("char")) parser.varDeclaration++;
-					parser.isPrimitive = false;
-				}
 			:};
 			
+rep_var ::= rep_var COMMA rep_var_part
+			| rep_var_part;
+			
+rep_var_part ::= IDENT:id
+				{:
+					if(parser.isGlobal && parser.isPrimitive)
+					{
+						parser.varDeclaration++;
+					}
+					
+					Tab.insert(Obj.VAR, id, idleft, var_type);
+				:}
+				|IDENT:id LSQUARE RSQUARE
+				{:
+					if(parser.isGlobal && parser.isPrimitive)
+					{
+						parser.arrayDeclaration++;
+					}
+					
+					Tab.insert(Obj.VAR, id, idleft, new Struct(Struct.ARR, var_type));
+				:};
+				
 			
 eventual_arr_in_decl ::= arr_in_decl
 						| /* eps */;
@@ -188,16 +252,6 @@ arr_in_decl ::= LSQUARE RSQUARE
 arr_sign ::= LSQUARE RSQUARE
 			| /* epsilon */;
 			
-rep_var ::= rep_var rep_var_part
-			| /* eps */;
-			
-rep_var_part ::= COMMA IDENT eventual_arr_in_decl
-				{:
-					if(parser.isGlobal && parser.isPrimitive)
-					{
-						parser.varDeclaration++;
-					}
-				:};
 
 
 class_decl ::= CLASS inner_class_name LBRACE var_decl_list option_in_class inner_class_end
