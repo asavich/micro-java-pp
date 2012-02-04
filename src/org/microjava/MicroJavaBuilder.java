@@ -3,10 +3,10 @@ package org.microjava;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.IOException;
 
 import java_cup.runtime.Symbol;
 
+import org.microjava.semantics.Tab;
 import org.microjava.syntax.*;
 
 public class MicroJavaBuilder {
@@ -18,7 +18,7 @@ public class MicroJavaBuilder {
 		
 		FileReader inputFile = null;
 		try {
-			inputFile = new FileReader(new File("jflex_cup/program3.mj"));
+			inputFile = new FileReader(new File("jflex_cup/program2.mj"));
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -38,6 +38,7 @@ public class MicroJavaBuilder {
 //			e.printStackTrace();
 //		}
 		
+		Tab.init();
 		parser p = new parser(l);
 		try {
 			Symbol s = p.parse();
@@ -66,6 +67,9 @@ public class MicroJavaBuilder {
 		{
 			System.out.println("Nije bilo gresaka pri parsiranju");
 		}
+		
+		System.out.print("\n\n\n");
+		Tab.dump();
 	}
 
 }

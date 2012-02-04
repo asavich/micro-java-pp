@@ -1,7 +1,9 @@
 package org.microjava.semantics;
 
 
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 
 public class Obj {
 
@@ -13,20 +15,21 @@ public class Obj {
 	
 	public int address; // CON: value, VAR, FLD, METH: address
 	public int level; // VAR: declaration level, METH: number of parameters
-	public LinkedList<Obj> locals; // METH: local objects
+	//public LinkedList<Obj> locals; 
+	public HashMap<String, Obj> locals;// METH: local objects, PROG
 	
 	public Obj (int kind, String name, Struct type)
 	{
 		this.kind = kind;
 		this.name = name;
 		this.type = type;
-		locals = new LinkedList<Obj>();
+		locals = new HashMap<String, Obj>();
 	}
 	
 	
 	
 	public Obj(int kind, String name, Struct type, int address, int level,
-			LinkedList<Obj> locals) {
+			HashMap<String, Obj> locals) {
 		super();
 		this.kind = kind;
 		this.name = name;
@@ -48,13 +51,34 @@ public class Obj {
 		
 	}
 
-	public static boolean equalsCompleteList(LinkedList<Obj> fields, LinkedList<Obj> fields2) {
-		if(fields == fields2) return true;
-		if(fields.size() != fields2.size()) return false;
+	public static boolean equalsCompleteList(HashMap<String, Obj> locals1, HashMap<String, Obj> locals2) {
+		if(locals1 == locals2) return true;
+		if(locals1.size() != locals2.size()) return false;
 		
-		for(int i=0; i<fields.size(); i++)
+		Map<String, Obj> map1 = locals1;
+		Map<String, Obj> map2 = locals2;
+		
+		for(Map.Entry<String, Obj> e : map1.entrySet())
 		{
-			if(fields2.get(i) != fields.get(i)) return false;
+			if(!map2.containsKey(e))
+			{
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
+	public static boolean equalsCompleteList(LinkedList<Obj> locals1, LinkedList<Obj> locals2) {
+		if(locals1 == locals2) return true;
+		if(locals1.size() != locals2.size()) return false;
+		
+		for(int i = 0; i < locals1.size(); i++)
+		{
+			if(!locals1.get(i).equals(locals2.get(i)))
+			{
+				return false;
+			}
 		}
 		
 		return true;
@@ -80,7 +104,8 @@ public class Obj {
 		res.append(this.name);
 		res.append(": ");
 		
-		LinkedList<Obj> objlist = locals;
+		//Map<String, Obj> objlist = locals;
+		LinkedList<Obj> objlist = new LinkedList<Obj>(locals.values());
 		
 		switch(type.kind)
 		{
@@ -120,5 +145,9 @@ public class Obj {
 		
 		return res.toString();
 	}
+
+
+
+	
 
 }

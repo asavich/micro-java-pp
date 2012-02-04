@@ -8,12 +8,14 @@ public class Struct {
 	public int kind; 
 	public Struct elementType; //only for arrays
 	public int numOfFields; // for Class number of fields
-	public LinkedList<Obj> fields; // list of fields
+	//public HashMap<String, Obj> fields; // list of fields
+	public LinkedList<Obj> fields;
 	
 	
 	public Struct (int kind)
 	{
 		this.kind = kind;
+		//fields = new HashMap<String, Obj>();
 		fields = new LinkedList<Obj>();
 	}
 	

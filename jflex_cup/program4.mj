@@ -1,0 +1,5 @@
+class Glavni 
+	final int aaa = 12;
+{
+
+}
