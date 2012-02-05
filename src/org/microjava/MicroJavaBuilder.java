@@ -6,8 +6,9 @@ import java.io.FileReader;
 
 import java_cup.runtime.Symbol;
 
-import org.microjava.semantics.Tab;
 import org.microjava.syntax.*;
+
+import rs.etf.pp1.symboltable.Tab;
 
 public class MicroJavaBuilder {
 
@@ -18,7 +19,7 @@ public class MicroJavaBuilder {
 		
 		FileReader inputFile = null;
 		try {
-			inputFile = new FileReader(new File("jflex_cup/program2.mj"));
+			inputFile = new FileReader(new File("jflex_cup/program4.mj"));
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

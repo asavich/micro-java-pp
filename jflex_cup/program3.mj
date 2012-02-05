@@ -1,29 +1,23 @@
-class P
-	sss a[];
-	class Table 
+class Glavni 
+	float prom; // greska, float tip ne postoji
+	char niz[]; // deklaracija niza
+{
+
+	int saberi (char a, char b) // parametre ne obradjujemo
 	{
-		int 1asd;
-		{
-		void Table(int s) { pos=new int[s]; neg=new int[s]; }
-		}
+		return; // greska – return bez izraza
 	}
-	
+
+	int oduzmi() {} // greska – treba return
+   
+   void nista() { return 5; } // greska – ne sme izraz u return
+ 
+   void main () 
+		int r;
 	{
-		void main() int x;
-		{
-		
-			x = 5;
-			zzz();
-			read(x);
-			if (ads == 4) 
-			{
-			}
-			
-		 
-			
-		}
-		
-		int zzz()
-		{
-		}
-	}
+		r = saberi(niz[0], niz[1]);
+		print(prom);
+	// u redu je sto nema return
+   }
+
+}
