@@ -68,7 +68,8 @@ parser code {:
 action code {:
 	Struct var_type = Tab.noType;
 	int argCnt = 0;
-	
+	boolean isVoid = false;
+	boolean returnFound = false;
 :}
 
 init with {:
@@ -89,7 +90,6 @@ init with {:
 	
 	variableType = "";
 	returnType = "";
-
 :};
 
 terminal TIMES, DIVIDE, MOD;
@@ -109,7 +109,7 @@ non terminal program, const_decl, var_decl, class_decl;
 non terminal method_decl, form_pars , statement;
 non terminal act_pars, condition, cond_term, cond_fact;
 non terminal expr, term, factor, relop, addop, mulop;
-non terminal var_decl_list, decl_list, decl_part, rhs, rep_var, rep_var_part;
+non terminal var_decl_list, decl_list, decl_part, rep_var, rep_var_part;
 non terminal method_decl_list, statement_list;
 non terminal option_in_class, eventual_formal_par, more_formal_pars; 
 non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
@@ -118,8 +118,8 @@ non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list, 
 non terminal start_main_program, var, assignment, statement_in_braces, cond_parens;
 non terminal function_call, expr_in_index;
 non terminal Obj prog_name, type_or_void, inner_class_name, designator;
-non terminal Struct type, var_type;
-non terminal String method_name, designator_name;
+non terminal Struct type, var_type, rhs;
+non terminal String method_name;
 
 
 precedence right ELSE;
@@ -158,11 +158,21 @@ decl_part ::= const_decl
 					parser.report_error("Izvrsen oporavak do ; na liniji " + lleft, null);
 				:};
 			
-const_decl ::= FINAL type:t IDENT:id ASSIGN rhs SEMI
+const_decl ::= FINAL type:t IDENT:id ASSIGN rhs:r SEMI
 			{:
 				if(parser.isGlobal)
 				{
 					parser.constDeclaration++;
+				}
+				
+				if(t.getKind() != r.getKind())
+				{
+					System.err.print("Semanricka greska na liniji " + idleft + ": Ocekuje se ");
+					switch(t.getKind())
+					{
+					case 1: System.err.println("int prilikom inicijalizacije konstante "); break;
+					case 2: System.err.println("char prilikom inicijalizacije konstante "); break;
+					}
 				}
 				
 				Tab.insert(Obj.Con, id, t);
@@ -207,7 +217,13 @@ var_type ::= IDENT:id
 	:};
 
 rhs ::=  NUMBER
-	| CHARCONST;
+	{:
+		RESULT = new Struct(Struct.Int);
+	:}
+	| CHARCONST
+	{:
+		RESULT = new Struct(Struct.Char);
+	:};
 	
 	
 var ::= var_decl
@@ -288,11 +304,13 @@ type_or_void ::= type:t method_name:mn
 					
 					RESULT = Tab.insert(Obj.Meth, mn, t);
 					Tab.openScope();
+					isVoid = false;
 				:}
 				| VOID method_name:mn
 				{:
 					
 					RESULT = Tab.insert(Obj.Meth, mn, Tab.noType);
+					isVoid = true;
 					Tab.openScope();
 				:};				
 				
@@ -330,6 +348,13 @@ method_decl ::= type_or_void:o LPAREN eventual_formal_par RPAREN var_decl_list L
 				if(parser.isInMain) parser.isInMain = false;
 				argCnt = 0;
 				
+				if(!isVoid && !returnFound)
+				{
+					System.err.println("Semanticka greska na liniji " + oleft + ": Nije pronadjen return na kraju metode koja nije deklarisana kao void");
+				}
+				
+				returnFound = false;
+				
 			:};  
 
 statement_list ::= statement_list statement
@@ -355,9 +380,13 @@ more_formal_pars ::= type:t IDENT:id
 eventual_act_pars ::= act_pars
 					| /* epsilon */;
 
-assignment ::= designator ASSIGN expr SEMI
+assignment ::= designator:d ASSIGN expr SEMI
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
+					if(d.getKind() != Obj.Var && d.getKind() != Obj.Elem && d.getKind() != Obj.Fld)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije promenljiva, element ili polje");
+					}  
 				:}					
 				| error SEMI:l
 				{:
@@ -408,6 +437,7 @@ statement ::= assignment
 			| RETURN eventual_expr SEMI
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
+					returnFound = true;
 				:}
 			| READ LPAREN designator RPAREN SEMI
 				{:
@@ -509,6 +539,8 @@ designator ::= IDENT:id
 				{
 					System.out.println("Nije pronadjen simbol sa linije " + idleft);
 				}
+				
+				RESULT = ob;
 			:}
 			| IDENT:id DOT IDENT designator_list
 			{:
@@ -526,6 +558,7 @@ designator ::= IDENT:id
 				{
 					System.out.println("Nije pronadjen simbol sa linije " + idleft);
 				}
+				RESULT = ob;
 			:}
 			| IDENT:id LSQUARE expr RSQUARE designator_list
 			{:
@@ -542,6 +575,8 @@ designator ::= IDENT:id
 				{
 					System.out.println("Nije pronadjen simbol sa linije " + idleft);
 				}
+				
+				RESULT = ob;
 			:};
 
 			
