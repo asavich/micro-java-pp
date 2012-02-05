@@ -6,7 +6,8 @@ class P
 	int array[];
 	char a[];
 	char v[];
-	int t[], d[], y;
+	int t[], d[], lj;
+	int y;
 	class Table 
 	{
 		int pos[], neg[];

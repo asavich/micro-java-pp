@@ -1,5 +1,37 @@
 class Glavni 
 	final int aaa = 12;
+	int g;
+	class NovaKlasa
+	
+	{
+		char t;
+		int b;
+		int pos[];
+		{
+			void putp (int a, int idx) 
+			{
+			 pos[idx]=a; 
+			}
+		}
+	}
 {
 
+	int zzz(int a, char z, int y[])
+		int u;
+	{
+		
+	}
+	
+	void main()
+	char zz;
+	NovaKlasa nk;
+	//zvrk rt;
+	{
+		nk.t = 22;
+		zz = 21;
+		zp4 = 5;
+		zzz(1, 4, 5);
+		return;
+	}
+	
 }

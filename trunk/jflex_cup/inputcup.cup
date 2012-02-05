@@ -1,7 +1,11 @@
 package org.microjava.syntax;
 
 import java_cup.runtime.*;
-import org.microjava.semantics.*;
+import rs.etf.pp1.symboltable.concepts.*;
+import rs.etf.pp1.symboltable.factory.*;
+import rs.etf.pp1.symboltable.structure.*;
+import rs.etf.pp1.symboltable.visitors.*;
+import rs.etf.pp1.symboltable.*;
 
 parser code {:
 	//public methods 
@@ -19,6 +23,7 @@ parser code {:
 	public int numOfStatements = 0;
 	
 	public String variableType;
+	public String returnType;
 	
 	public int numOfErrors = 0;
 	
@@ -61,7 +66,8 @@ parser code {:
 :}
 
 action code {:
-	Struct var_type = Tab.NOTYPE;
+	Struct var_type = Tab.noType;
+	int argCnt = 0;
 	
 :}
 
@@ -82,6 +88,7 @@ init with {:
 	numOfErrors = 0;
 	
 	variableType = "";
+	returnType = "";
 
 :};
 
@@ -101,30 +108,33 @@ terminal String IDENT;
 non terminal program, const_decl, var_decl, class_decl;
 non terminal method_decl, form_pars , statement;
 non terminal act_pars, condition, cond_term, cond_fact;
-non terminal expr, term, factor, designator, relop, addop, mulop;
-non terminal var_decl_list, decl_list, decl_part, rhs, arr_sign, rep_var, rep_var_part;
+non terminal expr, term, factor, relop, addop, mulop;
+non terminal var_decl_list, decl_list, decl_part, rhs, rep_var, rep_var_part;
 non terminal method_decl_list, statement_list;
-non terminal option_in_class, type_or_void, eventual_formal_par, more_formal_pars, more_formal_pars_list; 
+non terminal option_in_class, eventual_formal_par, more_formal_pars; 
 non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
 non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf, eventual_minus, multiple_addop_term, multiple_mulop_factor;
-non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list,  inner_class_name, inner_class_end;
-non terminal start_main_program, arr_in_decl, eventual_arr_in_decl, method_name, var, assignment, statement_in_braces, cond_parens;
+non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list, inner_class_end;
+non terminal start_main_program, var, assignment, statement_in_braces, cond_parens;
 non terminal function_call, expr_in_index;
-non terminal Obj prog_name;
+non terminal Obj prog_name, type_or_void, inner_class_name, designator;
 non terminal Struct type, var_type;
+non terminal String method_name, designator_name;
+
 
 precedence right ELSE;
 
 program ::= CLASS prog_name:o decl_list start_main_program method_decl_list RBRACE
 			{:
-				o.locals = Tab.topScope.locals;
+				//o.locals = Tab.topScope.locals;
+				o.setLocals(Tab.currentScope.getLocals());
 				Tab.closeScope();
 			:};
 			
 
 prog_name ::= IDENT: id
 			{:
-				RESULT = Tab.insert(Obj.PROG, id, idleft, Tab.NOTYPE);
+				RESULT = Tab.insert(Obj.Prog, id, Tab.noType);
 				Tab.openScope();
 			:};
 
@@ -155,20 +165,20 @@ const_decl ::= FINAL type:t IDENT:id ASSIGN rhs SEMI
 					parser.constDeclaration++;
 				}
 				
-				Tab.insert(Obj.CON, id, idleft, t);
+				Tab.insert(Obj.Con, id, t);
 			:};
 
 type ::= IDENT:id
 		{:
-			Obj nObj = Tab.find(id, idleft);
-			if(nObj.kind == Obj.TYPE)
+			Obj nObj = Tab.find(id);
+			if(nObj.getKind() == Obj.Type)
 			{
-				RESULT = nObj.type;
+				RESULT = nObj.getType();
 			}
 			else
 			{
-				parser.report_error("Greska ts jbg", null);
-				RESULT = Tab.NOTYPE;
+				parser.report_error("Greska na liniji " + idleft + " (" + id + ") nije tip", null);
+				RESULT = Tab.noType;
 			}
 		:};
 
@@ -184,15 +194,15 @@ var_type ::= IDENT:id
 			}
 		}
 		
-		Obj nObj = Tab.find(id, idleft);
-		if(nObj.kind == Obj.TYPE)
+		Obj nObj = Tab.find(id);
+		if(nObj.getKind() == Obj.Type)
 		{
-			RESULT = nObj.type;
+			RESULT = nObj.getType();
 		}
 		else
 		{
-			parser.report_error("Greska ts jbg", null);
-			RESULT = Tab.NOTYPE;
+			parser.report_error("Greska na liniji " + idleft + " (" + id + ") nije tip", null);
+			RESULT = Tab.noType;
 		}
 	:};
 
@@ -221,7 +231,7 @@ rep_var_part ::= IDENT:id
 						parser.varDeclaration++;
 					}
 					
-					Tab.insert(Obj.VAR, id, idleft, var_type);
+					Tab.insert(Obj.Var, id, var_type);
 				:}
 				|IDENT:id LSQUARE RSQUARE
 				{:
@@ -230,31 +240,18 @@ rep_var_part ::= IDENT:id
 						parser.arrayDeclaration++;
 					}
 					
-					Tab.insert(Obj.VAR, id, idleft, new Struct(Struct.ARR, var_type));
+					Tab.insert(Obj.Var, id, new Struct(Struct.Array, var_type));
 				:};
 				
 			
-eventual_arr_in_decl ::= arr_in_decl
-						| /* eps */;
-
-arr_in_decl ::= LSQUARE RSQUARE
-			{:
-			if(parser.isGlobal)
-			{
-				if(parser.isPrimitive)
-				{
-					parser.varDeclaration--;
-				}
-				parser.arrayDeclaration++;
-			}
-			:};
-
-arr_sign ::= LSQUARE RSQUARE
-			| /* epsilon */;
-			
 
 
-class_decl ::= CLASS inner_class_name LBRACE var_decl_list option_in_class inner_class_end
+class_decl ::= CLASS inner_class_name:icn LBRACE var_decl_list option_in_class inner_class_end
+				{:
+					//icn.type.fields = Tab.topScopeLocalsToLinkedList();
+					icn.getType().setMembers(Tab.currentScope.getLocals());
+					Tab.closeScope();
+				:}
 			| error RBRACE:l
 				{:
 					parser.report_error("Izvrsen oporavak do } na liniji " + lleft, null);
@@ -266,6 +263,9 @@ inner_class_name ::= IDENT:id
 					parser.innerClassDeclarations++;
 					parser.isInInnerClass = true;
 					parser.isGlobal = false;
+					
+					RESULT = Tab.insert(Obj.Type, id.toString(), new Struct(Struct.Class));
+					Tab.openScope();
 				:};
 				
 inner_class_end ::= RBRACE
@@ -283,8 +283,18 @@ method_decl_list ::= method_decl_list method_decl
 option_in_class ::= LBRACE method_decl_list RBRACE
 				| /* epsilon */;
 
-type_or_void ::= type 
-				| VOID;				
+type_or_void ::= type:t method_name:mn
+				{:
+					
+					RESULT = Tab.insert(Obj.Meth, mn, t);
+					Tab.openScope();
+				:}
+				| VOID method_name:mn
+				{:
+					
+					RESULT = Tab.insert(Obj.Meth, mn, Tab.noType);
+					Tab.openScope();
+				:};				
 				
 eventual_formal_par ::= form_pars
 					| /* epsilon */;
@@ -300,7 +310,7 @@ method_name ::= IDENT:name
 				}
 			:};
 				
-method_decl ::= type_or_void method_name:mn LPAREN eventual_formal_par RPAREN var_decl_list LBRACE statement_list RBRACE
+method_decl ::= type_or_void:o LPAREN eventual_formal_par RPAREN var_decl_list LBRACE statement_list RBRACE
 			{:
 				if(parser.isInInnerClass)
 				{
@@ -311,21 +321,35 @@ method_decl ::= type_or_void method_name:mn LPAREN eventual_formal_par RPAREN va
 					parser.mainClassMethods++;
 				}
 				
-				if(mn.equals("main"))
-				{
-					parser.isInMain = false;
-				}
+				//o.level = 0;
+				o.setLevel(0);
+				//o.locals = Tab.topScope.locals;
+				o.setLocals(Tab.currentScope.getLocals());
+				Tab.closeScope();
+				
+				if(parser.isInMain) parser.isInMain = false;
+				argCnt = 0;
+				
 			:};  
 
 statement_list ::= statement_list statement
 				| /* eps */;
 				
-form_pars ::= type IDENT arr_sign more_formal_pars_list;
 
-more_formal_pars ::= COMMA type IDENT arr_sign;
-
-more_formal_pars_list ::= more_formal_pars_list more_formal_pars
-						| /* epsilon */;
+form_pars ::= form_pars COMMA more_formal_pars
+			| more_formal_pars;
+			
+more_formal_pars ::= type:t IDENT:id
+				{:
+					Obj o = Tab.insert(Obj.Var, id, t);
+					o.setFpPos(argCnt++);
+					 
+				:}
+				| type:t IDENT:id LSQUARE RSQUARE
+				{:
+					Obj o = Tab.insert(Obj.Var, id, t);
+					o.setFpPos(argCnt++);
+				:};
 	
 	
 eventual_act_pars ::= act_pars
@@ -474,7 +498,53 @@ designator_part ::= DOT IDENT
 designator_list ::= designator_list designator_part
 				| /* epsilon */;
 						
-designator ::= IDENT designator_list;
+designator ::= IDENT:id
+			{:
+				Obj ob = Tab.find(id); 
+				if(ob != Tab.noObj)
+				{
+					System.out.println("Pretraga " + idleft + " (" + id + "), nadjeno " + ob.getName());	
+				}
+				else
+				{
+					System.out.println("Nije pronadjen simbol sa linije " + idleft);
+				}
+			:}
+			| IDENT:id DOT IDENT designator_list
+			{:
+				Obj ob = Tab.find(id); 
+				if(ob != Tab.noObj)
+				{
+					if(ob.getType().getKind() != Struct.Class)
+					{
+						//System.out.println("\n\n\n\n\n\n\n VRSTA JE " + ob.getKind() + "   " + ob.getName() );
+						parser.report_error("Greska na liniji " + idleft + " ocekivana klasa",null);
+					}
+					System.out.println("Pretraga " + idleft + " (" + id.toString() + "), nadjeno " + ob.getName());	
+				}
+				else
+				{
+					System.out.println("Nije pronadjen simbol sa linije " + idleft);
+				}
+			:}
+			| IDENT:id LSQUARE expr RSQUARE designator_list
+			{:
+				Obj ob = Tab.find(id); 
+				if(ob != Tab.noObj)
+				{
+					if(ob.getType().getKind() != Struct.Array)
+					{
+						parser.report_error("Greska na liniji " + idleft + " ocekivan niz",null);
+					}
+					System.out.println("Pretraga " + idleft + " (" + id.toString() + "), nadjeno " + ob.getName());	
+				}
+				else
+				{
+					System.out.println("Nije pronadjen simbol sa linije " + idleft);
+				}
+			:};
+
+			
 
 relop ::= EQUAL
 		| NOTEQUAL
