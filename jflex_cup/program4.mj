@@ -1,5 +1,5 @@
 class Glavni 
-	final int aaa = 12;
+	final int aaa = '3';
 	int g;
 	class NovaKlasa
 	
@@ -19,7 +19,7 @@ class Glavni
 	int zzz(int a, char z, int y[])
 		int u;
 	{
-		
+		return;
 	}
 	
 	void main()
@@ -27,9 +27,9 @@ class Glavni
 	NovaKlasa nk;
 	//zvrk rt;
 	{
+		//aaa = 3;
 		nk.t = 22;
 		zz = 21;
-		zp4 = 5;
 		zzz(1, 4, 5);
 		return;
 	}
