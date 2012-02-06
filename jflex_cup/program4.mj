@@ -10,16 +10,16 @@ class Glavni
 		{
 			void putp (int a, int idx) 
 			{
-			 pos[idx]=a; 
+			 //pos[idx]=a; 
 			}
 		}
 	}
 {
 
-	int zzz(int a, char z, int y[])
+	void zzz(int a, char z, int y[])
 		int u;
 	{
-		return;
+		//return 1;
 	}
 	
 	void main()
@@ -27,9 +27,12 @@ class Glavni
 	NovaKlasa nk;
 	//zvrk rt;
 	{
-		
-		zz = 21;
-		zzz(1, 4, 5);
+		nk = new NovaKlasa[1];
+		if(2 * 9  >= 5)
+		{
+		}
+		zzz();
+		print(2);
 		read(zz);
 		return;
 	}

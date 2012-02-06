@@ -23,9 +23,10 @@ parser code {:
 	public int numOfStatements = 0;
 	
 	public String variableType;
-	public String returnType;
+	public Struct returnType;
 	
 	public Struct currentClass = null;
+	
 	public boolean isInWhile = false;
 	
 	public int numOfErrors = 0;
@@ -93,14 +94,14 @@ init with {:
 	numOfErrors = 0;
 	
 	variableType = "";
-	returnType = "";
+	returnType = null;
 	currentClass = null;
 	isInWhile = false;
 :};
 
 terminal TIMES, DIVIDE, MOD;
 terminal PLUS, MINUS;
-terminal COMMA, SEMI, EQUAL, NOTEQUAL, GREATER, GREATEREQUAL, LESS, LESSEQUAL, ASSIGN, DOT;
+terminal COMMA, SEMI, NOTEQUAL, GREATER, GREATEREQUAL, LESS, LESSEQUAL, ASSIGN, DOT;
 terminal RPAREN, LPAREN, LBRACE, RBRACE, LSQUARE, RSQUARE;
 terminal PLUSPLUS, MINUSMINUS;
 terminal CLASS, FINAL, VOID;
@@ -109,23 +110,23 @@ terminal OR, AND, NEW;
 terminal INVALID;
 terminal Integer NUMBER;
 terminal Character CHARCONST;
-terminal String IDENT;
+terminal String IDENT, EQUAL;
 
 non terminal program, const_decl, var_decl, class_decl;
 non terminal method_decl, form_pars , statement;
 non terminal act_pars, condition, cond_term, cond_fact;
-non terminal term, factor, relop, addop, mulop;
+non terminal addop, mulop;
 non terminal var_decl_list, decl_list, decl_part, rep_var;
 non terminal method_decl_list, statement_list;
 non terminal option_in_class, eventual_formal_par, more_formal_pars; 
-non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
-non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf, eventual_minus, multiple_addop_term, multiple_mulop_factor;
-non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list, inner_class_end;
+non terminal stat_par, eventual_act_pars, eventual_else, eventual_num, multiple_comma_expr;
+non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf;
+non terminal eventual_p_expr, designator_part, designator_list, inner_class_end;
 non terminal start_main_program, var, assignment, statement_in_braces, cond_parens, class_method_list;
 non terminal function_call, expr_in_index;
 non terminal Obj prog_name, type_or_void, inner_class_name, designator, rep_var_part;
-non terminal Struct type, expr, var_type, rhs;
-non terminal String method_name;
+non terminal Struct type, expr, var_type, rhs, factor, term, multiple_mulop_factor, multiple_addop_term;
+non terminal String method_name, relop;
 
 
 precedence right ELSE;
@@ -224,11 +225,11 @@ var_type ::= IDENT:id
 
 rhs ::=  NUMBER
 	{:
-		RESULT = new Struct(Struct.Int);
+		RESULT = Tab.intType;
 	:}
 	| CHARCONST
 	{:
-		RESULT = new Struct(Struct.Char);
+		RESULT = Tab.charType;
 	:};
 	
 	
@@ -320,9 +321,10 @@ type_or_void ::= type:t method_name:mn
 					if(parser.currentClass != null)
 					{
 						//Tab.insert(Obj.Var, "this", parser.currentClass);
-						Tab.insert(Obj.Var, "this", new Struct(Struct.Int));
+						Tab.insert(Obj.Var, "this", Tab.intType);
 					}
 					isVoid = false;
+					parser.returnType = t;
 				:}
 				| VOID method_name:mn
 				{:
@@ -333,7 +335,7 @@ type_or_void ::= type:t method_name:mn
 					if(parser.currentClass != null)
 					{
 						//Tab.insert(Obj.Var, "this", parser.currentClass);
-						Tab.insert(Obj.Var, "this", new Struct(Struct.Int));
+						Tab.insert(Obj.Var, "this", Tab.intType);
 					}
 				:};				
 				
@@ -405,13 +407,18 @@ more_formal_pars ::= type:t IDENT:id
 eventual_act_pars ::= act_pars
 					| /* epsilon */;
 
-assignment ::= designator:d ASSIGN expr SEMI
+assignment ::= designator:d ASSIGN expr:e SEMI
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
 					if(d.getKind() != Obj.Var && d.getKind() != Obj.Elem && d.getKind() != Obj.Fld)
 					{
 						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije promenljiva, element ili polje");
 					}  
+					
+					if(!e.compatibleWith(d.getType()))
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": tipovi nisu kompatibilni ");
+					}
 				:}					
 				| error SEMI:l
 				{:
@@ -468,8 +475,7 @@ eventual_else ::= ELSE statement
 				| /* epsilon */;
 				
 				
-eventual_expr ::= expr
-				| /* epsilon */;
+
 												
 statement ::= assignment
 			| stat_par SEMI
@@ -491,11 +497,26 @@ statement ::= assignment
 						System.err.println("Semanticka greska na liniji " + sleft + ": " + " break se koristi van while petlje");
 					}
 				:}
-			| RETURN eventual_expr SEMI
+			| RETURN expr:e SEMI
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
 					returnFound = true;
+					
+					if(parser.returnType != null && e.getKind() != parser.returnType.getKind())
+					{
+						System.err.println("Semanticka greska na liniji " + eleft + ": " + " povratni tip metode ne odgovara deklarisanom povratnom tipu");
+					}
+					
+					if(isVoid)
+					{
+						System.err.println("Semanticka greska na liniji " + eleft + ": " + " Vracena vrednost u metodi deklarisanoj kao void");
+					}
 				:}
+			| RETURN SEMI
+			{:
+				if(parser.isInMain) parser.numOfStatements++;
+					returnFound = true;
+			:}
 			| READ LPAREN designator:d RPAREN SEMI
 				{:
 					if(parser.isInMain) parser.numOfFunctions++;
@@ -510,9 +531,13 @@ statement ::= assignment
 						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije tipa int ili char. U funkciji  \"read\" dozvoljeno je koristiti samo int ili char");
 					}
 				:}
-			| PRINT LPAREN expr eventual_num RPAREN SEMI
+			| PRINT LPAREN expr:e eventual_num RPAREN SEMI
 				{:
 					if(parser.isInMain) parser.numOfFunctions++;
+					if(e.getKind() != Struct.Int && e.getKind() != Struct.Char)
+					{
+						System.err.println("Semanticka greska na liniji " + eleft + ": Izraz nije tipa int ili char. U funkciji  \"print\" dozvoljeno je koristiti samo int ili char");
+					}
 				:}
 			| statement_in_braces;
 				
@@ -554,24 +579,122 @@ multiple_and_cf ::= multiple_and_cf and_cf
 				
 cond_term ::= cond_fact multiple_and_cf;
 
-cond_fact ::= expr relop expr;
-
-eventual_minus ::= MINUS
-				| /* epsilon */;
-				
-multiple_addop_term ::= multiple_addop_term addop term
-					| /* epsilon */;
-
-expr ::= eventual_minus term multiple_addop_term;
-
-
-multiple_mulop_factor ::= multiple_mulop_factor mulop factor
-						| /* epsilon */;
+cond_fact ::= expr:e1 relop:ro expr:e2
+			{:
+				if(!(e1.compatibleWith(e2)))
+				{
+					System.err.println("Semanticka greska na liniji " + e1left + ": Izrazi u uslovu nisu kompatibilni");
+				}
+				else
+				{
+					if(e1.getKind() == Struct.Array || e1.getKind() == Struct.Class)
+					{
 						
-term ::= factor multiple_mulop_factor;
+						if((!ro.equals("==")) && (!ro.equals("!=")))
+						{
+							System.err.println("Semanticka greska na liniji " + e1left + ": Izrazi su tipa niza ili klase a relacioni operator nije == ili !=");
+						}
+					}
+				}
+				
+			:};
 
-eventual_b_act ::= LPAREN eventual_act_pars RPAREN
-				| /* epsilon */;
+				
+multiple_addop_term ::= multiple_addop_term:t0 addop term:t2
+					{:
+						if(t0.getKind() == t2.getKind())
+						{
+							RESULT = t0;
+						}
+						else
+						{
+							RESULT = Tab.noType;
+						}
+					:}
+					| addop term:t1
+					{:
+						RESULT = t1;
+					:};
+
+expr ::= term:t
+		{:
+			RESULT = t;
+		:}
+		| MINUS term:t1
+		{:
+			if(t1.getKind() != Struct.Int)
+			{
+				System.err.println("Semanticka greska na liniji " + t1left +  " nije tipa int");
+			}
+		:} 
+		| MINUS term:t0 multiple_addop_term:t1
+		{:
+			if(t0.getKind() == t1.getKind())
+			{
+				RESULT = t0;
+			}
+			else
+			{
+				RESULT = Tab.noType;
+			}
+		:}
+		| term:t0 multiple_addop_term:t1
+		{:
+			if(t0.getKind() == t1.getKind())
+			{
+				RESULT = t0;
+			}
+			else
+			{
+				RESULT = Tab.noType;
+			}
+			
+			if(t0.getKind() != Struct.Int || t1.getKind() != Struct.Int)
+			{
+				System.err.println("Semanticka greska na liniji " + t1left +  " Elementi izraza(sabiranje) nisu tipa int");
+			}
+		:};
+
+
+multiple_mulop_factor ::= multiple_mulop_factor:mf mulop factor:f
+						{:
+							if(mf.getKind() != Struct.Int || f.getKind() != Struct.Int)
+							{
+								RESULT = Tab.noType;
+							}
+							else
+							{
+								RESULT = f;
+							}
+						:}
+						| factor:f
+						{:
+							RESULT = f;
+						:};
+						
+term ::= factor:f
+		{:
+			RESULT = f;
+		:} 
+		| factor:f mulop multiple_mulop_factor:mf
+		{:
+			if(mf.getKind() != Struct.Int || f.getKind() != Struct.Int)
+			{
+				RESULT = Tab.noType;
+			}
+			else
+			{
+				RESULT = f;
+			}
+			
+			if(f.getKind() != Struct.Int || mf.getKind() != Struct.Int)
+			{
+				System.err.println("Semanticka greska na liniji " + mfleft +  " Elementi izraza(mnozenje) nisu tipa int");
+			}
+		:};
+		
+		
+
 				
 eventual_p_expr ::= expr_in_index
 				| /* eps */;
@@ -582,12 +705,51 @@ expr_in_index ::= LSQUARE expr RSQUARE
 					parser.report_error("Izvrsen oporavak do ] na liniji " + lleft, null);
 				:};
 
-factor ::= designator eventual_b_act
+factor ::= designator:d
+		{:
+			RESULT = d.getType();
+		:} 
+		designator:d1 LPAREN eventual_act_pars RPAREN
+		{:
+			RESULT = d1.getType();
+			if(d1.getKind() != Obj.Meth)
+			{
+				System.err.println("Semanticka greska na liniji " + d1left +  d1.getName() + " nije metoda");
+			}
+		:}
 		| NUMBER
+		{:
+			RESULT = Tab.intType;
+		:}
 		| CHARCONST
-		| NEW type eventual_p_expr
-		| NEW type LPAREN eventual_act_pars RPAREN
-		| LPAREN expr RPAREN;
+		{:
+			RESULT = Tab.charType;
+		:}
+		| NEW type:t
+		{:
+			RESULT = t;
+		:}
+		| NEW type:t LSQUARE expr:e RSQUARE
+		{:
+			RESULT = t;
+			if(e.getKind() != Struct.Int)
+			{
+				System.err.println("Semanticka greska na liniji " + tleft +  " izraz u [] nije tipa int");
+			}
+		:}
+		| NEW type:t LPAREN eventual_act_pars RPAREN
+		{:
+			RESULT = t;
+			
+			if(t.getKind() != Struct.Class)
+			{	
+				System.err.println("Semanticka greska na liniji " + tleft + " Nakon new mora doci ime klase");
+			}
+		:}
+		| LPAREN expr:e RPAREN
+		{:
+			RESULT = e;
+		:};
 		
 designator_part ::= DOT IDENT
 				| LSQUARE expr RSQUARE;
@@ -648,12 +810,30 @@ designator ::= IDENT:id
 
 			
 
-relop ::= EQUAL
+relop ::= EQUAL:id
+		{:
+			RESULT = "==";
+		:}
 		| NOTEQUAL
+		{:
+			RESULT = "!=";
+		:}
 		| GREATER
+		{:
+			RESULT = ">";
+		:}
 		| GREATEREQUAL
+		{:
+			RESULT = ">=";
+		:}
 		| LESS
-		| LESSEQUAL;
+		{:
+			RESULT = "<";
+		:}
+		| LESSEQUAL
+		{:
+			RESULT = "<=";
+		:};
 		
 addop ::= PLUS
 		| MINUS;
