@@ -1,5 +1,5 @@
 class Glavni 
-	final int aaa = '3';
+	final char aaa = '3';
 	int g;
 	class NovaKlasa
 	
@@ -27,10 +27,10 @@ class Glavni
 	NovaKlasa nk;
 	//zvrk rt;
 	{
-		//aaa = 3;
-		nk.t = 22;
+		
 		zz = 21;
 		zzz(1, 4, 5);
+		read(zz);
 		return;
 	}
 	
