@@ -25,6 +25,9 @@ parser code {:
 	public String variableType;
 	public String returnType;
 	
+	public Struct currentClass = null;
+	public boolean isInWhile = false;
+	
 	public int numOfErrors = 0;
 	
 	public boolean errorDetected = false;
@@ -70,6 +73,7 @@ action code {:
 	int argCnt = 0;
 	boolean isVoid = false;
 	boolean returnFound = false;
+	
 :}
 
 init with {:
@@ -90,6 +94,8 @@ init with {:
 	
 	variableType = "";
 	returnType = "";
+	currentClass = null;
+	isInWhile = false;
 :};
 
 terminal TIMES, DIVIDE, MOD;
@@ -108,17 +114,17 @@ terminal String IDENT;
 non terminal program, const_decl, var_decl, class_decl;
 non terminal method_decl, form_pars , statement;
 non terminal act_pars, condition, cond_term, cond_fact;
-non terminal expr, term, factor, relop, addop, mulop;
-non terminal var_decl_list, decl_list, decl_part, rep_var, rep_var_part;
+non terminal term, factor, relop, addop, mulop;
+non terminal var_decl_list, decl_list, decl_part, rep_var;
 non terminal method_decl_list, statement_list;
 non terminal option_in_class, eventual_formal_par, more_formal_pars; 
 non terminal stat_par, eventual_act_pars, eventual_else, eventual_expr, eventual_num, multiple_comma_expr;
 non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf, eventual_minus, multiple_addop_term, multiple_mulop_factor;
 non terminal eventual_b_act, eventual_p_expr, designator_part, designator_list, inner_class_end;
-non terminal start_main_program, var, assignment, statement_in_braces, cond_parens;
+non terminal start_main_program, var, assignment, statement_in_braces, cond_parens, class_method_list;
 non terminal function_call, expr_in_index;
-non terminal Obj prog_name, type_or_void, inner_class_name, designator;
-non terminal Struct type, var_type, rhs;
+non terminal Obj prog_name, type_or_void, inner_class_name, designator, rep_var_part;
+non terminal Struct type, expr, var_type, rhs;
 non terminal String method_name;
 
 
@@ -247,7 +253,7 @@ rep_var_part ::= IDENT:id
 						parser.varDeclaration++;
 					}
 					
-					Tab.insert(Obj.Var, id, var_type);
+					RESULT = Tab.insert(Obj.Var, id, var_type);
 				:}
 				|IDENT:id LSQUARE RSQUARE
 				{:
@@ -256,7 +262,7 @@ rep_var_part ::= IDENT:id
 						parser.arrayDeclaration++;
 					}
 					
-					Tab.insert(Obj.Var, id, new Struct(Struct.Array, var_type));
+					RESULT = Tab.insert(Obj.Var, id, new Struct(Struct.Array, var_type));
 				:};
 				
 			
@@ -267,12 +273,13 @@ class_decl ::= CLASS inner_class_name:icn LBRACE var_decl_list option_in_class i
 					//icn.type.fields = Tab.topScopeLocalsToLinkedList();
 					icn.getType().setMembers(Tab.currentScope.getLocals());
 					Tab.closeScope();
+					parser.currentClass = null;
 				:}
 			| error RBRACE:l
 				{:
 					parser.report_error("Izvrsen oporavak do } na liniji " + lleft, null);
 				:};
-				
+					
 				
 inner_class_name ::= IDENT:id
 				{:
@@ -280,7 +287,9 @@ inner_class_name ::= IDENT:id
 					parser.isInInnerClass = true;
 					parser.isGlobal = false;
 					
-					RESULT = Tab.insert(Obj.Type, id.toString(), new Struct(Struct.Class));
+					Struct thisClass = new Struct(Struct.Class);
+					parser.currentClass = thisClass;
+					RESULT = Tab.insert(Obj.Type, id.toString(), thisClass);
 					Tab.openScope();
 				:};
 				
@@ -296,14 +305,23 @@ var_decl_list ::= var_decl_list var
 method_decl_list ::= method_decl_list method_decl
 					| /* epsilon */;
 
-option_in_class ::= LBRACE method_decl_list RBRACE
+option_in_class ::= LBRACE class_method_list RBRACE
 				| /* epsilon */;
+				
+class_method_list ::= class_method_list method_decl
+					| method_decl;
+					
 
 type_or_void ::= type:t method_name:mn
 				{:
 					
 					RESULT = Tab.insert(Obj.Meth, mn, t);
 					Tab.openScope();
+					if(parser.currentClass != null)
+					{
+						//Tab.insert(Obj.Var, "this", parser.currentClass);
+						Tab.insert(Obj.Var, "this", new Struct(Struct.Int));
+					}
 					isVoid = false;
 				:}
 				| VOID method_name:mn
@@ -312,6 +330,11 @@ type_or_void ::= type:t method_name:mn
 					RESULT = Tab.insert(Obj.Meth, mn, Tab.noType);
 					isVoid = true;
 					Tab.openScope();
+					if(parser.currentClass != null)
+					{
+						//Tab.insert(Obj.Var, "this", parser.currentClass);
+						Tab.insert(Obj.Var, "this", new Struct(Struct.Int));
+					}
 				:};				
 				
 eventual_formal_par ::= form_pars
@@ -327,6 +350,8 @@ method_name ::= IDENT:name
 					parser.isInMain = true;
 				}
 			:};
+			
+
 				
 method_decl ::= type_or_void:o LPAREN eventual_formal_par RPAREN var_decl_list LBRACE statement_list RBRACE
 			{:
@@ -403,14 +428,40 @@ function_call ::= LPAREN eventual_act_pars RPAREN
 					parser.report_error("Izvrsen oporavak do ) na liniji " + lleft, null);
 				:};
 									
-stat_par ::= function_call
-			| PLUSPLUS
+stat_par ::= designator:d function_call
+			{:
+				if(d.getKind() != Obj.Meth)
+				{
+					System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije metoda");
+				}
+			:}
+			| designator:d PLUSPLUS
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
+					
+					if(d.getKind() != Obj.Var && d.getKind() != Obj.Elem && d.getKind() != Obj.Fld)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije promenljiva, element ili polje");
+					}
+					
+					if(d.getType().getKind() != Struct.Int)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije tipa int. Uz operator \"++\" se mora koristiti int");
+					}
 				:}
-			| MINUSMINUS
+			| designator:d MINUSMINUS
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
+					
+					if(d.getKind() != Obj.Var && d.getKind() != Obj.Elem && d.getKind() != Obj.Fld)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije promenljiva, element ili polje");
+					}
+					
+					if(d.getType().getKind() != Struct.Int)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije tipa int. Uz operator \"--\" se mora koristiti int");
+					}
 				:};  
 						
 eventual_else ::= ELSE statement
@@ -421,27 +472,43 @@ eventual_expr ::= expr
 				| /* epsilon */;
 												
 statement ::= assignment
-			| designator stat_par SEMI
+			| stat_par SEMI
 			| IF cond_parens statement eventual_else
 			    {:
 					if(parser.isInMain) parser.numOfStatements++;
 				:}
-			| WHILE cond_parens statement
+			| WHILE {:parser.isInWhile = true; :} cond_parens statement
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
+					parser.isInWhile = false;
 				:}
-			| BREAK SEMI
+			| BREAK SEMI:s
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
+					
+					if(!parser.isInWhile)
+					{
+						System.err.println("Semanticka greska na liniji " + sleft + ": " + " break se koristi van while petlje");
+					}
 				:}
 			| RETURN eventual_expr SEMI
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
 					returnFound = true;
 				:}
-			| READ LPAREN designator RPAREN SEMI
+			| READ LPAREN designator:d RPAREN SEMI
 				{:
 					if(parser.isInMain) parser.numOfFunctions++;
+					
+					if(d.getKind() != Obj.Var && d.getKind() != Obj.Elem && d.getKind() != Obj.Fld)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije promenljiva, element ili polje");
+					}
+					
+					if((d.getType().getKind() != Struct.Int) && (d.getType().getKind() != Struct.Char))
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije tipa int ili char. U funkciji  \"read\" dozvoljeno je koristiti samo int ili char");
+					}
 				:}
 			| PRINT LPAREN expr eventual_num RPAREN SEMI
 				{:
