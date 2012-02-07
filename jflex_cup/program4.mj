@@ -16,7 +16,7 @@ class Glavni
 	}
 {
 
-	void zzz(int a, char z, int y[])
+	void zzz(int a, char z)
 		int u;
 	{
 		//return 1;
@@ -25,14 +25,15 @@ class Glavni
 	void main()
 	char zz;
 	NovaKlasa nk;
+	char niz[];
 	//zvrk rt;
 	{
 		nk = new NovaKlasa[1];
-		if(2 * 9  >= 5)
-		{
-		}
-		zzz();
-		print(2);
+		nk.t = 'r';
+		
+		niz[21] = '3';
+		zzz(1, '1');
+		print(2, 5);
 		read(zz);
 		return;
 	}
