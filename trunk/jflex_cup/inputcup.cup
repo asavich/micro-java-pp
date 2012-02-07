@@ -7,6 +7,9 @@ import rs.etf.pp1.symboltable.structure.*;
 import rs.etf.pp1.symboltable.visitors.*;
 import rs.etf.pp1.symboltable.*;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 parser code {:
 	//public methods 
 	public int innerClassDeclarations = 0;
@@ -24,6 +27,7 @@ parser code {:
 	
 	public String variableType;
 	public Struct returnType;
+	public ArrayList<Struct> actualPars = new ArrayList<Struct>();
 	
 	public Struct currentClass = null;
 	
@@ -74,6 +78,9 @@ action code {:
 	int argCnt = 0;
 	boolean isVoid = false;
 	boolean returnFound = false;
+	int numOfFormalPars = 0;
+	int numOfActualPars = 0;
+	
 	
 :}
 
@@ -97,6 +104,7 @@ init with {:
 	returnType = null;
 	currentClass = null;
 	isInWhile = false;
+	actualPars.add(null);
 :};
 
 terminal TIMES, DIVIDE, MOD;
@@ -113,21 +121,20 @@ terminal Character CHARCONST;
 terminal String IDENT, EQUAL;
 
 non terminal program, const_decl, var_decl, class_decl;
-non terminal method_decl, form_pars , statement;
+non terminal method_decl, statement, form_pars;
 non terminal act_pars, condition, cond_term, cond_fact;
 non terminal addop, mulop;
 non terminal var_decl_list, decl_list, decl_part, rep_var;
 non terminal method_decl_list, statement_list;
-non terminal option_in_class, eventual_formal_par, more_formal_pars; 
-non terminal stat_par, eventual_act_pars, eventual_else, eventual_num, multiple_comma_expr;
+non terminal option_in_class, more_formal_pars; 
+non terminal stat_par, eventual_else, eventual_num, multiple_comma_expr;
 non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf;
-non terminal eventual_p_expr, designator_part, designator_list, inner_class_end;
+non terminal designator_part, designator_list, inner_class_end;
 non terminal start_main_program, var, assignment, statement_in_braces, cond_parens, class_method_list;
-non terminal function_call, expr_in_index;
+non terminal function_call, eventual_act_pars;
 non terminal Obj prog_name, type_or_void, inner_class_name, designator, rep_var_part;
 non terminal Struct type, expr, var_type, rhs, factor, term, multiple_mulop_factor, multiple_addop_term;
 non terminal String method_name, relop;
-
 
 precedence right ELSE;
 
@@ -254,7 +261,17 @@ rep_var_part ::= IDENT:id
 						parser.varDeclaration++;
 					}
 					
-					RESULT = Tab.insert(Obj.Var, id, var_type);
+					if(parser.currentClass == null)
+					{
+								
+						RESULT = Tab.insert(Obj.Var, id, var_type);
+					}
+					else
+					{
+						RESULT = Tab.insert(Obj.Fld, id, var_type);
+					}
+					
+					
 				:}
 				|IDENT:id LSQUARE RSQUARE
 				{:
@@ -263,7 +280,14 @@ rep_var_part ::= IDENT:id
 						parser.arrayDeclaration++;
 					}
 					
-					RESULT = Tab.insert(Obj.Var, id, new Struct(Struct.Array, var_type));
+					if(parser.currentClass == null)
+					{
+						RESULT = Tab.insert(Obj.Var, id, new Struct(Struct.Array, var_type));
+					}
+					else
+					{
+						RESULT = Tab.insert(Obj.Fld, id, new Struct(Struct.Array, var_type));
+					}
 				:};
 				
 			
@@ -339,10 +363,31 @@ type_or_void ::= type:t method_name:mn
 					}
 				:};				
 				
-eventual_formal_par ::= form_pars
-					| /* epsilon */;
 					
-
+form_pars ::= form_pars COMMA more_formal_pars
+			| more_formal_pars
+			{:
+				
+			:};
+			
+more_formal_pars ::= type:t IDENT:id
+				{:
+					Obj o = Tab.insert(Obj.Var, id, t);
+					o.setFpPos(argCnt++);
+					o.setLevel(1);
+					numOfFormalPars++;
+					//System.err.println("INKREMENTIRANJE FORMAL "+ numOfFormalPars + " |||||||||" + argCnt );
+					 
+				:}
+				| type:t IDENT:id LSQUARE RSQUARE
+				{:
+					Obj o = Tab.insert(Obj.Var, id, t);
+					o.setFpPos(argCnt++);
+					o.setLevel(1);
+					numOfFormalPars++;
+					//System.err.println("INKREMENTIRANJE FORMAL "+ numOfFormalPars + " |||||||||" + argCnt );
+				:};
+					
 
 method_name ::= IDENT:name
 			{:
@@ -355,7 +400,36 @@ method_name ::= IDENT:name
 			
 
 				
-method_decl ::= type_or_void:o LPAREN eventual_formal_par RPAREN var_decl_list LBRACE statement_list RBRACE
+method_decl ::= type_or_void:o LPAREN form_pars RPAREN var_decl_list LBRACE statement_list RBRACE
+			{:
+				if(parser.isInInnerClass)
+				{
+					parser.innerClassMethods++;
+				}
+				else
+				{
+					parser.mainClassMethods++;
+				}
+				
+				//o.level = 0;
+				o.setLevel(numOfFormalPars);
+				//o.locals = Tab.topScope.locals;
+				o.setLocals(Tab.currentScope.getLocals());
+				Tab.closeScope();
+				
+				if(parser.isInMain) parser.isInMain = false;
+				argCnt = 0;
+				
+				if(!isVoid && !returnFound)
+				{
+					System.err.println("Semanticka greska na liniji " + oleft + ": Nije pronadjen return na kraju metode koja nije deklarisana kao void");
+				}
+				
+				returnFound = false;
+				numOfFormalPars = 0;
+				
+			:}
+			| type_or_void:o LPAREN RPAREN var_decl_list LBRACE statement_list RBRACE
 			{:
 				if(parser.isInInnerClass)
 				{
@@ -388,24 +462,10 @@ statement_list ::= statement_list statement
 				| /* eps */;
 				
 
-form_pars ::= form_pars COMMA more_formal_pars
-			| more_formal_pars;
+
 			
-more_formal_pars ::= type:t IDENT:id
-				{:
-					Obj o = Tab.insert(Obj.Var, id, t);
-					o.setFpPos(argCnt++);
-					 
-				:}
-				| type:t IDENT:id LSQUARE RSQUARE
-				{:
-					Obj o = Tab.insert(Obj.Var, id, t);
-					o.setFpPos(argCnt++);
-				:};
+
 	
-	
-eventual_act_pars ::= act_pars
-					| /* epsilon */;
 
 assignment ::= designator:d ASSIGN expr:e SEMI
 				{:
@@ -415,9 +475,12 @@ assignment ::= designator:d ASSIGN expr:e SEMI
 						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije promenljiva, element ili polje");
 					}  
 					
-					if(!e.compatibleWith(d.getType()))
+					if(!e.assignableTo(d.getType()))
 					{
-						System.err.println("Semanticka greska na liniji " + dleft + ": tipovi nisu kompatibilni ");
+						if((d.getType().getKind() == Struct.Array) && (!e.assignableTo(d.getType().getElemType())))
+						{
+							System.err.println("Semanticka greska na liniji " + dleft + ": tipovi nisu kompatibilni ");
+						}
 					}
 				:}					
 				| error SEMI:l
@@ -426,22 +489,55 @@ assignment ::= designator:d ASSIGN expr:e SEMI
 				:};
 					
 					
-function_call ::= LPAREN eventual_act_pars RPAREN
+function_call ::= designator:d {: numOfActualPars = 0; :} LPAREN eventual_act_pars RPAREN
 				{:
 					if(parser.isInMain) parser.numOfFunctions++;
+					
+					if(d.getKind() != Obj.Meth)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije metoda");
+					}
+					
+					if(d.getLevel() != numOfActualPars)
+					{
+						System.err.println("Semanticka greska na liniji " + dleft + ": ocekuje se " + d.getLevel() + " parametara u metodi " + d.getName() + " a dobijeno je " + numOfActualPars);					
+					}
+					else
+					{
+						if(numOfActualPars != 0)
+						{
+							Collection<Obj> locs = d.getLocalSymbols();
+							for(Obj i : locs)
+							{
+								if(i.getLevel() == 1)
+								{
+									int position = i.getFpPos();
+									//if(i.getType().getKind() != parser.actualPars.get(position).getKind())
+									if(!(parser.actualPars.get(position).assignableTo(i.getType())))
+									{
+										System.err.println("Semanticka greska na liniji " + dleft + ": Formalni i stvarni argumenti na poziciji " + position + " nisu komatibilnih tipova ");
+									}
+								}
+							
+							}
+						}
+					}
+					
+									
+					parser.actualPars.clear();
+					parser.actualPars.add(null);
+					numOfActualPars = 0;
 				:}
-				| error RPAREN:l	
+				| designator:d error RPAREN:l	
 				{:
 					parser.report_error("Izvrsen oporavak do ) na liniji " + lleft, null);
+					if(d.getKind() != Obj.Meth)
+					{	
+						System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije metoda");
+					}
 				:};
 									
-stat_par ::= designator:d function_call
-			{:
-				if(d.getKind() != Obj.Meth)
-				{
-					System.err.println("Semanticka greska na liniji " + dleft + ": " + d.getName() + " nije metoda");
-				}
-			:}
+stat_par ::=function_call
 			| designator:d PLUSPLUS
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
@@ -553,12 +649,30 @@ statement_in_braces ::= LBRACE statement_list RBRACE
 eventual_num ::= COMMA NUMBER
 				| /* epsilon */;
 				
-act_pars ::= expr multiple_comma_expr;    
+act_pars ::= expr:e
+			{:
+				numOfActualPars++;
+				parser.actualPars.set(0, e);
+			:}
+			| expr:e multiple_comma_expr
+			{:
+				numOfActualPars++;
+				parser.actualPars.set(0, e);
+				//System.err.println("DODAJE SE " + e.getKind());
+			:};  
+			
+eventual_act_pars ::= act_pars
+					| /* epsilon */;  
 
-comma_expr ::= COMMA expr;
+comma_expr ::= COMMA expr:e
+			{:
+				numOfActualPars++;
+				parser.actualPars.add(e);
+				//System.err.println("DODAJE SE " + e.getKind());
+			:};
 
 multiple_comma_expr ::= multiple_comma_expr comma_expr
-					| /* epsilon */; 
+					| comma_expr; 
 					
 		
 multiple_or_ct ::= multiple_or_ct OR cond_term
@@ -693,23 +807,20 @@ term ::= factor:f
 			}
 		:};
 		
-		
-
-				
-eventual_p_expr ::= expr_in_index
-				| /* eps */;
-				
-expr_in_index ::= LSQUARE expr RSQUARE
-				| error RSQUARE:l
-				{:
-					parser.report_error("Izvrsen oporavak do ] na liniji " + lleft, null);
-				:};
 
 factor ::= designator:d
 		{:
 			RESULT = d.getType();
 		:} 
-		designator:d1 LPAREN eventual_act_pars RPAREN
+		| designator:d1 LPAREN act_pars RPAREN
+		{:
+			RESULT = d1.getType();
+			if(d1.getKind() != Obj.Meth)
+			{
+				System.err.println("Semanticka greska na liniji " + d1left +  d1.getName() + " nije metoda");
+			}
+		:}
+		| designator:d1 LPAREN RPAREN
 		{:
 			RESULT = d1.getType();
 			if(d1.getKind() != Obj.Meth)
@@ -737,7 +848,16 @@ factor ::= designator:d
 				System.err.println("Semanticka greska na liniji " + tleft +  " izraz u [] nije tipa int");
 			}
 		:}
-		| NEW type:t LPAREN eventual_act_pars RPAREN
+		| NEW type:t LPAREN act_pars RPAREN
+		{:
+			RESULT = t;
+			
+			if(t.getKind() != Struct.Class)
+			{	
+				System.err.println("Semanticka greska na liniji " + tleft + " Nakon new mora doci ime klase");
+			}
+		:}
+		| NEW type:t LPAREN RPAREN
 		{:
 			RESULT = t;
 			
@@ -751,6 +871,7 @@ factor ::= designator:d
 			RESULT = e;
 		:};
 		
+			
 designator_part ::= DOT IDENT
 				| LSQUARE expr RSQUARE;
 				
@@ -771,14 +892,13 @@ designator ::= IDENT:id
 				
 				RESULT = ob;
 			:}
-			| IDENT:id DOT IDENT designator_list
+			| IDENT:id DOT IDENT:id2 designator_list
 			{:
 				Obj ob = Tab.find(id); 
 				if(ob != Tab.noObj)
 				{
 					if(ob.getType().getKind() != Struct.Class)
 					{
-						//System.out.println("\n\n\n\n\n\n\n VRSTA JE " + ob.getKind() + "   " + ob.getName() );
 						parser.report_error("Greska na liniji " + idleft + " ocekivana klasa",null);
 					}
 					System.out.println("Pretraga " + idleft + " (" + id.toString() + "), nadjeno " + ob.getName());	
@@ -787,9 +907,30 @@ designator ::= IDENT:id
 				{
 					System.out.println("Nije pronadjen simbol sa linije " + idleft);
 				}
-				RESULT = ob;
+				
+				if(ob.getType().getKind() != Struct.Class)
+				{
+					System.err.println("Semanticka greska na liniji " + idleft + id +  " nije klasa");
+				}
+				else
+				{
+					SymbolDataStructure sdt = ob.getType().getMembers();
+					Obj res = sdt.searchKey(id2);
+					if(res == null)
+					{
+						RESULT = ob;
+						System.err.println("Semanticka greska na liniji " + idleft + id2 +  " nije polje ove klase");
+					}
+					else
+					{
+						RESULT = res;
+					}
+				}
+				
+				
+				
 			:}
-			| IDENT:id LSQUARE expr RSQUARE designator_list
+			| IDENT:id LSQUARE expr:e RSQUARE designator_list
 			{:
 				Obj ob = Tab.find(id); 
 				if(ob != Tab.noObj)
@@ -805,10 +946,20 @@ designator ::= IDENT:id
 					System.out.println("Nije pronadjen simbol sa linije " + idleft);
 				}
 				
+				if(ob.getType().getKind() != Struct.Array)
+				{
+					System.err.println("Semanticka greska na liniji " + idleft + ": " +  id +  " nije niz");
+				}
+				
+				if(e.getKind() != Struct.Int)
+				{
+					System.err.println("Semanticka greska na liniji " + idleft + ": Izraz u srednjima zagradama nije tipa int");
+				}
+				
 				RESULT = ob;
 			:};
-
 			
+
 
 relop ::= EQUAL:id
 		{:
