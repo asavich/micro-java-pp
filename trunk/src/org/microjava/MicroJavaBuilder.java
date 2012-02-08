@@ -2,12 +2,14 @@ package org.microjava;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 
 import java_cup.runtime.Symbol;
 
 import org.microjava.syntax.*;
 
+import rs.etf.pp1.mj.runtime.Code;
 import rs.etf.pp1.symboltable.Tab;
 
 public class MicroJavaBuilder {
@@ -71,6 +73,13 @@ public class MicroJavaBuilder {
 		
 		System.out.print("\n\n\n");
 		Tab.dump();
+		
+		try {
+ 		   if ( !p.errorDetected && !Code.greska) 
+ 		      Code.write(new FileOutputStream("jflex_cup/output.omj"));
+ 		} catch(Exception e) {
+ 		    System.err.println("Greska pri kreiranju objektnog fajla");
+ 		}
 	}
 
 }
