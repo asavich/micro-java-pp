@@ -83,6 +83,8 @@ action code {:
 	int numOfActualPars = 0;
 	int constNumVal = 0;
 	boolean parametersFound = false;
+	String currentAddop;
+	String currentMulop;
 :}
 
 init with {:
@@ -124,7 +126,6 @@ terminal String IDENT, EQUAL;
 non terminal program, const_decl, var_decl, class_decl;
 non terminal method_decl, statement, form_pars;
 non terminal act_pars, condition, cond_term, cond_fact;
-non terminal addop, mulop;
 non terminal var_decl_list, decl_list, decl_part, rep_var;
 non terminal method_decl_list, statement_list, matched, unmatched;
 non terminal option_in_class, more_formal_pars; 
@@ -135,7 +136,7 @@ non terminal start_main_program, var, assignment, statement_in_braces, cond_pare
 non terminal function_call, eventual_act_pars;
 non terminal Obj prog_name, type_or_void, inner_class_name, designator, rep_var_part;
 non terminal Struct type, expr, var_type, rhs, factor, term, multiple_mulop_factor, multiple_addop_term;
-non terminal String method_name, relop;
+non terminal String method_name, relop, addop, mulop;
 
 
 program ::= CLASS prog_name:o decl_list start_main_program method_decl_list RBRACE
@@ -351,7 +352,7 @@ type_or_void ::= type:t method_name:mn
 					if(parser.currentClass != null)
 					{
 						//Tab.insert(Obj.Var, "this", parser.currentClass);
-						Tab.insert(Obj.Var, "this", Tab.intType);
+						//Tab.insert(Obj.Var, "this", Tab.intType);
 					}
 					isVoid = false;
 					parser.returnType = t;
@@ -381,7 +382,7 @@ type_or_void ::= type:t method_name:mn
 					if(parser.currentClass != null)
 					{
 						//Tab.insert(Obj.Var, "this", parser.currentClass);
-						Tab.insert(Obj.Var, "this", Tab.intType);
+						//Tab.insert(Obj.Var, "this", Tab.intType);
 					}
 					
 					if(parser.isInMain)
@@ -823,7 +824,7 @@ cond_fact ::= expr:e1 relop:ro expr:e2
 			:};
 
 				
-multiple_addop_term ::= multiple_addop_term:t0 addop term:t2
+multiple_addop_term ::= multiple_addop_term:t0 addop:ao term:t2
 					{:
 						if(t0.getKind() == t2.getKind())
 						{
@@ -833,10 +834,19 @@ multiple_addop_term ::= multiple_addop_term:t0 addop term:t2
 						{
 							RESULT = Tab.noType;
 						}
+						
+						if(ao.equals("+"))
+						{
+							Code.put(Code.add);
+						} else
+						{
+							Code.put(Code.add);
+						}
 					:}
-					| addop term:t1
+					| addop:ao term:t1
 					{:
 						RESULT = t1;
+						currentAddop = ao;
 					:};
 
 expr ::= term:t
@@ -876,10 +886,20 @@ expr ::= term:t
 			{
 				System.err.println("Semanticka greska na liniji " + t1left +  " Elementi izraza(sabiranje) nisu tipa int");
 			}
+			
+			if(currentAddop.equals("+"))
+			{
+				Code.put(Code.add);
+			}
+			else if(currentAddop.equals("-"))
+			{
+				Code.put(Code.sub);
+			}
+			
 		:};
 
 
-multiple_mulop_factor ::= multiple_mulop_factor:mf mulop factor:f
+multiple_mulop_factor ::= multiple_mulop_factor:mf mulop:mo factor:f
 						{:
 							if(mf.getKind() != Struct.Int || f.getKind() != Struct.Int)
 							{
@@ -889,9 +909,22 @@ multiple_mulop_factor ::= multiple_mulop_factor:mf mulop factor:f
 							{
 								RESULT = f;
 							}
+							
+							if(mo.equals("*"))
+							{	
+								Code.put(Code.mul);
+							}
+								else if(mo.equals("/"))
+							{
+								Code.put(Code.div);
+							}else
+							{
+								Code.put(Code.rem);
+							}
 						:}
-						| factor:f
+						| mulop:mo factor:f
 						{:
+							currentMulop = mo;
 							RESULT = f;
 						:};
 						
@@ -899,7 +932,7 @@ term ::= factor:f
 		{:
 			RESULT = f;
 		:} 
-		| factor:f mulop multiple_mulop_factor:mf
+		| factor:f multiple_mulop_factor:mf
 		{:
 			if(mf.getKind() != Struct.Int || f.getKind() != Struct.Int)
 			{
@@ -913,6 +946,19 @@ term ::= factor:f
 			if(f.getKind() != Struct.Int || mf.getKind() != Struct.Int)
 			{
 				System.err.println("Semanticka greska na liniji " + mfleft +  " Elementi izraza(mnozenje) nisu tipa int");
+			}
+			
+			//Code.load(f);
+			if(currentMulop.equals("*"))
+			{	
+				Code.put(Code.mul);
+			}
+			else if(currentMulop.equals("/"))
+			{
+				Code.put(Code.div);
+			}else
+			{
+				Code.put(Code.rem);
 			}
 		:};
 		
@@ -947,6 +993,7 @@ factor ::= designator:d
 			Obj o = new Obj(Obj.Con, "", Tab.intType);
 			o.setAdr(i.intValue());
 			Code.load(o);
+			//System.err.println("Ucitan " + i.intValue());
 			RESULT = Tab.intType;
 		:}
 		| CHARCONST:c
@@ -958,7 +1005,9 @@ factor ::= designator:d
 		:}
 		| NEW type:t
 		{:
+			// niz
 			RESULT = t;
+			
 		:}
 		| NEW type:t LSQUARE expr:e RSQUARE
 		{:
@@ -1107,11 +1156,26 @@ relop ::= EQUAL:id
 		:};
 		
 addop ::= PLUS
-		| MINUS;
+		{:
+			RESULT = "+";
+		:}
+		| MINUS
+		{:
+			RESULT = "-";
+		:};
 		
 mulop ::= TIMES
+		{:
+			RESULT = "*";
+		:}
 		| DIVIDE
-		| MOD;
+		{:
+			RESULT = "/";
+		:}
+		| MOD
+		{:
+			RESULT = "%";
+		:};
 
 
 
