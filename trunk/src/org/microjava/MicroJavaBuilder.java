@@ -19,9 +19,14 @@ public class MicroJavaBuilder {
 	 */
 	public static void main(String[] args) {
 		
+		if(args.length < 1)
+		{
+			System.err.println("Nema dovoljno argumenata");
+			return;
+		}
 		FileReader inputFile = null;
 		try {
-			inputFile = new FileReader(new File("jflex_cup/program4.mj"));
+			inputFile = new FileReader(new File(args[0]));
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

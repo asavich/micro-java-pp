@@ -1,0 +1,19 @@
+class Glavni 
+	final char aaa = '3';
+	int g, t;
+{
+
+	void sab()
+	{
+		print('c');
+	}
+
+	void main()
+	{	g = 6 * 6 * 2;
+		t = g + 100;
+		print(t);
+		sab();
+		return;
+	}
+	
+}
