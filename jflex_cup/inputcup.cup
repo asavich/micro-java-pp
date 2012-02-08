@@ -6,6 +6,7 @@ import rs.etf.pp1.symboltable.factory.*;
 import rs.etf.pp1.symboltable.structure.*;
 import rs.etf.pp1.symboltable.visitors.*;
 import rs.etf.pp1.symboltable.*;
+import rs.etf.pp1.mj.runtime.*;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -80,8 +81,8 @@ action code {:
 	boolean returnFound = false;
 	int numOfFormalPars = 0;
 	int numOfActualPars = 0;
-	
-	
+	int constNumVal = 0;
+	boolean parametersFound = false;
 :}
 
 init with {:
@@ -142,6 +143,7 @@ program ::= CLASS prog_name:o decl_list start_main_program method_decl_list RBRA
 			{:
 				//o.locals = Tab.topScope.locals;
 				o.setLocals(Tab.currentScope.getLocals());
+				Code.dataSize = Tab.currentScope.getnVars();
 				Tab.closeScope();
 			:};
 			
@@ -189,8 +191,10 @@ const_decl ::= FINAL type:t IDENT:id ASSIGN rhs:r SEMI
 					}
 				}
 				
-				Tab.insert(Obj.Con, id, t);
+				Obj ins = Tab.insert(Obj.Con, id, t);
+				ins.setAdr(constNumVal);
 			:};
+			
 
 type ::= IDENT:id
 		{:
@@ -230,13 +234,15 @@ var_type ::= IDENT:id
 		}
 	:};
 
-rhs ::=  NUMBER
+rhs ::=  NUMBER:n
 	{:
 		RESULT = Tab.intType;
+		constNumVal = n;
 	:}
-	| CHARCONST
+	| CHARCONST:c
 	{:
 		RESULT = Tab.charType;
+		constNumVal = c;
 	:};
 	
 	
@@ -340,7 +346,8 @@ class_method_list ::= class_method_list method_decl
 type_or_void ::= type:t method_name:mn
 				{:
 					
-					RESULT = Tab.insert(Obj.Meth, mn, t);
+					Obj o = Tab.insert(Obj.Meth, mn, t);
+					RESULT = o;
 					Tab.openScope();
 					if(parser.currentClass != null)
 					{
@@ -349,17 +356,48 @@ type_or_void ::= type:t method_name:mn
 					}
 					isVoid = false;
 					parser.returnType = t;
+					
+					if(parser.isInMain)
+					{
+						Code.mainPc = Code.pc;
+						//if(o.getType() != Tab.noType)
+						//{
+							System.err.println("Semanticka greska na liniji " + tleft + ": main metoda mora biti void");
+						//}
+					
+						o.setLevel(0);  
+                   	    o.setAdr(Code.pc);
+                    	Code.put(Code.enter);
+                   	    Code.put(o.getLevel());
+                    	Code.put(Tab.currentScope.getnVars());
+					}
 				:}
 				| VOID method_name:mn
 				{:
 					
-					RESULT = Tab.insert(Obj.Meth, mn, Tab.noType);
+					Obj o = Tab.insert(Obj.Meth, mn, Tab.noType);
+					RESULT = o;
 					isVoid = true;
 					Tab.openScope();
 					if(parser.currentClass != null)
 					{
 						//Tab.insert(Obj.Var, "this", parser.currentClass);
 						Tab.insert(Obj.Var, "this", Tab.intType);
+					}
+					
+					if(parser.isInMain)
+					{
+						Code.mainPc = Code.pc;
+						//if(o.getType() != Tab.noType)
+						//{
+						//	System.err.println("Semanticka greska na liniji " + oleft + ": main metoda mora biti void");
+						//}
+					
+						o.setLevel(0);  
+                   	    o.setAdr(Code.pc);
+                    	Code.put(Code.enter);
+                   	    Code.put(o.getLevel());
+                    	Code.put(Tab.currentScope.getnVars());
 					}
 				:};				
 				
@@ -395,6 +433,9 @@ method_name ::= IDENT:name
 				if(name.equals("main"))
 				{
 					parser.isInMain = true;
+					
+					
+					
 				}
 			:};
 			
@@ -410,6 +451,7 @@ method_decl ::= type_or_void:o LPAREN form_pars RPAREN var_decl_list LBRACE stat
 				{
 					parser.mainClassMethods++;
 				}
+				
 				
 				//o.level = 0;
 				o.setLevel(numOfFormalPars);
@@ -427,6 +469,17 @@ method_decl ::= type_or_void:o LPAREN form_pars RPAREN var_decl_list LBRACE stat
 				
 				returnFound = false;
 				numOfFormalPars = 0;
+				
+				if(isVoid)
+				{
+					Code.put(Code.exit);
+					Code.put(Code.return_);
+				}
+				else
+				{
+					Code.put(Code.trap);
+					Code.put(1);
+				}
 				
 			:}
 			| type_or_void:o LPAREN RPAREN var_decl_list LBRACE statement_list RBRACE
@@ -456,6 +509,17 @@ method_decl ::= type_or_void:o LPAREN form_pars RPAREN var_decl_list LBRACE stat
 				
 				returnFound = false;
 				
+				if(isVoid)
+				{
+					Code.put(Code.exit);
+					Code.put(Code.return_);
+				}
+				else
+				{
+					Code.put(Code.trap);
+					Code.put(1);
+				}
+				
 			:};  
 
 statement_list ::= statement_list statement
@@ -482,6 +546,10 @@ assignment ::= designator:d ASSIGN expr:e SEMI
 							System.err.println("Semanticka greska na liniji " + dleft + ": tipovi nisu kompatibilni ");
 						}
 					}
+					else
+					{
+						Code.store(d);
+					}
 				:}					
 				| error SEMI:l
 				{:
@@ -489,7 +557,7 @@ assignment ::= designator:d ASSIGN expr:e SEMI
 				:};
 					
 					
-function_call ::= designator:d {: numOfActualPars = 0; :} LPAREN eventual_act_pars RPAREN
+function_call ::= designator:d {: numOfActualPars = 0; parametersFound = false; :} LPAREN eventual_act_pars RPAREN
 				{:
 					if(parser.isInMain) parser.numOfFunctions++;
 					
@@ -523,6 +591,26 @@ function_call ::= designator:d {: numOfActualPars = 0; :} LPAREN eventual_act_pa
 						}
 					}
 					
+					if(parametersFound)
+					{
+						int dest_adr=d.getAdr()-Code.pc; // racunanje relativne adrese 
+                        Code.put(Code.call); 
+                        Code.put2(dest_adr);
+                        if (d.getType() != Tab.noType)
+						{                       
+                           Code.put(Code.pop);
+                        }
+					}
+					else
+					{
+						int destAdr = d.getAdr() - Code.pc;
+						Code.put(Code.call);
+						Code.put2(destAdr);
+						if(d.getType() != Tab.noType)
+						{
+							Code.put(Code.pop);
+						}
+					}
 									
 					parser.actualPars.clear();
 					parser.actualPars.add(null);
@@ -592,6 +680,8 @@ statement ::= assignment
 					{
 						System.err.println("Semanticka greska na liniji " + sleft + ": " + " break se koristi van while petlje");
 					}
+					
+					
 				:}
 			| RETURN expr:e SEMI
 				{:
@@ -607,11 +697,17 @@ statement ::= assignment
 					{
 						System.err.println("Semanticka greska na liniji " + eleft + ": " + " Vracena vrednost u metodi deklarisanoj kao void");
 					}
+					
+					Code.put(Code.exit);
+					Code.put(Code.return_);
 				:}
 			| RETURN SEMI
 			{:
 				if(parser.isInMain) parser.numOfStatements++;
-					returnFound = true;
+				returnFound = true;
+					
+				Code.put(Code.exit);
+				Code.put(Code.return_);
 			:}
 			| READ LPAREN designator:d RPAREN SEMI
 				{:
@@ -634,6 +730,17 @@ statement ::= assignment
 					{
 						System.err.println("Semanticka greska na liniji " + eleft + ": Izraz nije tipa int ili char. U funkciji  \"print\" dozvoljeno je koristiti samo int ili char");
 					}
+					
+					if(e == Tab.intType)
+					{
+						Code.loadConst(5);
+						Code.put(Code.print);
+					}
+					else
+					{
+						Code.loadConst(1);
+						Code.put(Code.bprint);
+					}
 				:}
 			| statement_in_braces;
 				
@@ -653,12 +760,14 @@ act_pars ::= expr:e
 			{:
 				numOfActualPars++;
 				parser.actualPars.set(0, e);
+				parametersFound = true;
 			:}
 			| expr:e multiple_comma_expr
 			{:
 				numOfActualPars++;
 				parser.actualPars.set(0, e);
 				//System.err.println("DODAJE SE " + e.getKind());
+				parametersFound = true;
 			:};  
 			
 eventual_act_pars ::= act_pars
