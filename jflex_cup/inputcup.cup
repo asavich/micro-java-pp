@@ -126,9 +126,9 @@ non terminal method_decl, statement, form_pars;
 non terminal act_pars, condition, cond_term, cond_fact;
 non terminal addop, mulop;
 non terminal var_decl_list, decl_list, decl_part, rep_var;
-non terminal method_decl_list, statement_list;
+non terminal method_decl_list, statement_list, matched, unmatched;
 non terminal option_in_class, more_formal_pars; 
-non terminal stat_par, eventual_else, eventual_num, multiple_comma_expr;
+non terminal stat_par, eventual_num, multiple_comma_expr;
 non terminal comma_expr, and_cf, multiple_or_ct, multiple_and_cf;
 non terminal designator_part, designator_list, inner_class_end;
 non terminal start_main_program, var, assignment, statement_in_braces, cond_parens, class_method_list;
@@ -137,7 +137,6 @@ non terminal Obj prog_name, type_or_void, inner_class_name, designator, rep_var_
 non terminal Struct type, expr, var_type, rhs, factor, term, multiple_mulop_factor, multiple_addop_term;
 non terminal String method_name, relop;
 
-precedence right ELSE;
 
 program ::= CLASS prog_name:o decl_list start_main_program method_decl_list RBRACE
 			{:
@@ -655,19 +654,20 @@ stat_par ::=function_call
 					}
 				:};  
 						
-eventual_else ::= ELSE statement
-				| /* epsilon */;
 				
-				
-
+statement ::= matched
+			| unmatched;
+			
+unmatched ::= IF cond_parens statement
+			| IF cond_parens matched ELSE unmatched;
 												
-statement ::= assignment
+matched ::= assignment
 			| stat_par SEMI
-			| IF cond_parens statement eventual_else
+			| IF cond_parens matched ELSE matched
 			    {:
 					if(parser.isInMain) parser.numOfStatements++;
 				:}
-			| WHILE {:parser.isInWhile = true; :} cond_parens statement
+			| WHILE {:parser.isInWhile = true; :} cond_parens matched
 				{:
 					if(parser.isInMain) parser.numOfStatements++;
 					parser.isInWhile = false;
@@ -920,6 +920,7 @@ term ::= factor:f
 factor ::= designator:d
 		{:
 			RESULT = d.getType();
+			Code.load(d);
 		:} 
 		| designator:d1 LPAREN act_pars RPAREN
 		{:
@@ -936,13 +937,23 @@ factor ::= designator:d
 			{
 				System.err.println("Semanticka greska na liniji " + d1left +  d1.getName() + " nije metoda");
 			}
+			
+			int destAdr=d1.getAdr()-Code.pc; 
+            Code.put(Code.call);
+            Code.put2(destAdr);
 		:}
-		| NUMBER
+		| NUMBER:i
 		{:
+			Obj o = new Obj(Obj.Con, "", Tab.intType);
+			o.setAdr(i.intValue());
+			Code.load(o);
 			RESULT = Tab.intType;
 		:}
-		| CHARCONST
+		| CHARCONST:c
 		{:
+			Obj o = new Obj(Obj.Con, "", Tab.charType);
+			o.setAdr(c.charValue());
+			Code.load(o);
 			RESULT = Tab.charType;
 		:}
 		| NEW type:t
